@@ -148,25 +148,68 @@ def get_account_data():
         logger.info(f"Scraper service response status: {response.status_code}")
         
         if response.status_code == 200:
-            profiles = response.json()
-            logger.info(f"Retrieved {len(profiles)} profiles from scraper service")
+            data = response.json()
+            logger.info(f"Received data from scraper service: {type(data)}")
             
-            # Print the first profile to see its structure
-            if profiles and isinstance(profiles, list) and len(profiles) > 0:
-                logger.info(f"Sample profile data: {profiles[0]}")
+            # Handle different response formats
+            if isinstance(data, dict) and 'profiles' in data:
+                # Format: { "profiles": [ ... ] }
+                profiles = data['profiles']
+                logger.info(f"Extracted profiles from 'profiles' field, got {len(profiles) if profiles else 0} profiles")
+            elif isinstance(data, list):
+                # Format: [ ... ]
+                profiles = data
+                logger.info(f"Data is already a list with {len(profiles)} items")
             else:
-                logger.warning(f"Profiles data is not in expected format: {type(profiles)}")
-                if not isinstance(profiles, list):
-                    # Try to handle different response formats
-                    if isinstance(profiles, dict) and 'data' in profiles:
-                        profiles = profiles['data']
-                        logger.info(f"Extracted profiles from 'data' field, got {len(profiles) if profiles else 0} profiles")
+                # Unexpected format
+                logger.warning(f"Unexpected data format: {type(data)}")
+                logger.warning(f"Sample data: {str(data)[:500]}")
+                
+                # Try to extract something usable
+                if isinstance(data, dict):
+                    # Look for any field that might contain profiles
+                    for key, value in data.items():
+                        if isinstance(value, list) and len(value) > 0:
+                            profiles = value
+                            logger.info(f"Extracted profiles from '{key}' field, got {len(profiles)} profiles")
+                            break
                     else:
-                        # Convert to list if it's not already
-                        profiles = [profiles] if profiles else []
-                        logger.info(f"Converted profile data to list format")
+                        # No list field found, use the dict itself as a single profile
+                        profiles = [data]
+                        logger.info("Using the entire response as a single profile")
+                else:
+                    # Can't do anything with this
+                    logger.error(f"Unable to extract profile data from response")
+                    return []
             
-            return profiles
+            # Process the profiles to match our expected format
+            processed_profiles = []
+            
+            for profile in profiles:
+                # Check if we have the expected fields or need to transform
+                if isinstance(profile, dict):
+                    processed_profile = {
+                        'username': profile.get('username', ''),
+                        'followers': profile.get('follower_count', profile.get('followers', 0)),
+                        'follower_change': profile.get('follower_change', 0),
+                        'profile_pic_url': profile.get('profile_pic_url', ''),
+                        'bio': profile.get('biography', profile.get('bio', '')),
+                        'history': profile.get('history', [])
+                    }
+                    
+                    # If we have a checked_at field, use it to create history if none exists
+                    if not processed_profile['history'] and 'checked_at' in profile:
+                        processed_profile['history'] = [{
+                            'timestamp': profile['checked_at'],
+                            'followers': processed_profile['followers']
+                        }]
+                    
+                    processed_profiles.append(processed_profile)
+                    
+            if processed_profiles and len(processed_profiles) > 0:
+                logger.info(f"Sample processed profile: {processed_profiles[0]}")
+            
+            return processed_profiles
         else:
             logger.warning(f"Failed to get profiles from scraper service: {response.status_code}")
             logger.warning(f"Response content: {response.text[:500]}")
@@ -174,6 +217,11 @@ def get_account_data():
     
     except requests.exceptions.RequestException as e:
         logger.error(f"Error connecting to scraper service: {str(e)}")
+        return []
+    except Exception as e:
+        logger.error(f"Error processing account data: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return []
 
 @bp.route('/stats/scrape', methods=['GET'])
