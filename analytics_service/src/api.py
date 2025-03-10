@@ -152,8 +152,19 @@ def get_account_data():
             logger.info(f"Retrieved {len(profiles)} profiles from scraper service")
             
             # Print the first profile to see its structure
-            if profiles and len(profiles) > 0:
+            if profiles and isinstance(profiles, list) and len(profiles) > 0:
                 logger.info(f"Sample profile data: {profiles[0]}")
+            else:
+                logger.warning(f"Profiles data is not in expected format: {type(profiles)}")
+                if not isinstance(profiles, list):
+                    # Try to handle different response formats
+                    if isinstance(profiles, dict) and 'data' in profiles:
+                        profiles = profiles['data']
+                        logger.info(f"Extracted profiles from 'data' field, got {len(profiles) if profiles else 0} profiles")
+                    else:
+                        # Convert to list if it's not already
+                        profiles = [profiles] if profiles else []
+                        logger.info(f"Converted profile data to list format")
             
             return profiles
         else:
@@ -187,10 +198,14 @@ def api_growth_stats():
         
         if not profiles:
             logger.warning("No profile data available for growth statistics")
+            # Return empty success response instead of error
             return jsonify({
-                'error': 'No profile data available',
+                'total_accounts': 0,
+                'total_followers': 0,
+                'total_weekly_growth': 0,
+                'avg_growth_rate': 0,
                 'accounts': []
-            }), 404
+            })
             
         logger.info(f"Processing growth statistics for {len(profiles)} profiles")
         
@@ -306,13 +321,17 @@ def api_trend_analysis():
     """Analyze trends in follower growth."""
     try:
         # Get account data
+        logger.info("Fetching account data for trend analysis")
         profiles = get_account_data()
         
         if not profiles:
+            logger.warning("No profile data available for trend analysis")
             return jsonify({
                 'error': 'No profile data available',
-                'trends': []
-            }), 404
+                'trend_direction': 'stable',
+                'data_points': 0,
+                'trend_data': []
+            })
         
         # Prepare data structures for trend analysis
         now = datetime.now()
@@ -388,13 +407,15 @@ def api_engagement_analysis():
     """Calculate engagement metrics for accounts."""
     try:
         # Get account data
+        logger.info("Fetching account data for engagement analysis")
         profiles = get_account_data()
         
         if not profiles:
+            logger.warning("No profile data available for engagement analysis")
             return jsonify({
-                'error': 'No profile data available',
+                'total_accounts': 0,
                 'accounts': []
-            }), 404
+            })
         
         # Process profiles to extract engagement metrics
         engagement_data = []
