@@ -4,9 +4,17 @@ import { API_PORT, API_URL as CONFIG_API_URL, API_ENDPOINTS } from '../config';
 // Determine if we're in development mode
 const isDev = process.env.NODE_ENV === 'development';
 
-// Configure API URL based on environment
-// Allow override via environment variable, otherwise use the config value
-const API_URL = process.env.REACT_APP_API_URL || (isDev ? `http://localhost:${API_PORT}` : '');
+// Check for runtime environment variables from window._env_ (set by Docker)
+const runtimeEnv = window._env_ || {};
+
+// Configure API URL - priority order:
+// 1. Runtime env from window._env_ (set by Docker)
+// 2. Environment variable from build time
+// 3. Config default value or development fallback
+const API_URL = runtimeEnv.REACT_APP_API_URL || 
+                process.env.REACT_APP_API_URL || 
+                CONFIG_API_URL || 
+                (isDev ? `http://localhost:${API_PORT}` : '');
 
 // Create an Axios instance with default config
 const api = axios.create({

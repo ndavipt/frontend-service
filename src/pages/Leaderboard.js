@@ -49,8 +49,21 @@ const Leaderboard = () => {
   const directFetchLeaderboard = async () => {
     try {
       console.log('Executing direct fetch to backend API');
+      
+      // Get API URL from config/env variables
+      const apiUrl = process.env.REACT_APP_API_URL || 
+                    (window._env_ && window._env_.REACT_APP_API_URL) || 
+                    '/api/leaderboard';
+                    
+      // Use relative path if no API URL is configured 
+      const endpoint = apiUrl.includes('://') ? 
+                      `${apiUrl}/api/leaderboard` : 
+                      '/api/leaderboard';
+                      
+      console.log(`Using API endpoint: ${endpoint}`);
+      
       // Direct call to the backend API
-      const response = await fetch('http://localhost:5050/api/leaderboard', {
+      const response = await fetch(endpoint, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -164,11 +177,17 @@ const Leaderboard = () => {
     setDirectData(null);
     
     try {
-      // Try three different approaches to reach the API
+      // Get API URL from config/env variables
+      const apiUrl = process.env.REACT_APP_API_URL || 
+                    (window._env_ && window._env_.REACT_APP_API_URL) || 
+                    '';
+      
+      // Try different approaches to reach the API
       const approaches = [
-        { name: 'Test server direct', url: 'http://localhost:5050/api/leaderboard' },
         { name: 'React proxy', url: '/api/leaderboard' },
-        { name: 'Minimal test server', url: 'http://localhost:5050/api/test' }
+        { name: 'API direct', url: `${apiUrl}/api/leaderboard` },
+        { name: 'Minimal test', url: '/api/test' },
+        { name: 'Scraper service', url: 'https://scraper-service-907s.onrender.com/profiles' }
       ];
       
       let successful = false;

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Environment Check</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    pre {
+      background-color: #f6f8fa;
+      border-radius: 6px;
+      padding: 16px;
+      overflow: auto;
+    }
+    h1 {
+      border-bottom: 1px solid #eaecef;
+      padding-bottom: 10px;
+    }
+    .card {
+      border: 1px solid #e1e4e8;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .error {
+      color: #d73a49;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Environment Variables Check</h1>
+  
+  <div class="card">
+    <h2>Detected Environment</h2>
+    <pre id="env-output">Loading...</pre>
+  </div>
+
+  <div class="card">
+    <h2>API Connection Test</h2>
+    <button id="test-api">Test API Connection</button>
+    <pre id="api-output">Click the button to test</pre>
+  </div>
+
+  <script>
+    // Display environment variables
+    const envOutput = document.getElementById('env-output');
+    const apiOutput = document.getElementById('api-output');
+    const testApiButton = document.getElementById('test-api');
+
+    // Check for runtime environment variables
+    function checkEnv() {
+      try {
+        const env = {
+          NODE_ENV: process.env.NODE_ENV || 'Not set',
+          REACT_APP_API_URL: process.env.REACT_APP_API_URL || 'Not set',
+          REACT_APP_ANALYTICS_URL: process.env.REACT_APP_ANALYTICS_URL || 'Not set',
+          REACT_APP_SCRAPER_URL: process.env.REACT_APP_SCRAPER_URL || 'Not set',
+          Window_ENV: window._env_ ? 'Present' : 'Not found'
+        };
+
+        if (window._env_) {
+          env.Window_ENV_Details = window._env_;
+        }
+
+        envOutput.textContent = JSON.stringify(env, null, 2);
+      } catch (error) {
+        envOutput.textContent = `Error detecting environment: ${error.message}`;
+        envOutput.classList.add('error');
+      }
+    }
+
+    // Test API connection
+    testApiButton.addEventListener('click', async () => {
+      apiOutput.textContent = 'Testing connection...';
+      
+      // Try multiple potential API endpoints
+      const endpoints = [
+        '/api/test',
+        '/api/leaderboard',
+        'https://insta-leaderboard-api.onrender.com/api/test',
+        'https://insta-leaderboard-api.onrender.com/api/leaderboard'
+      ];
+
+      const results = {};
+      
+      for (const endpoint of endpoints) {
+        try {
+          apiOutput.textContent += `\nTrying ${endpoint}...`;
+          const start = performance.now();
+          const response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json'
+            }
+          });
+          const duration = (performance.now() - start).toFixed(2);
+          
+          let data = null;
+          try {
+            data = await response.json();
+          } catch (e) {
+            data = await response.text();
+          }
+          
+          results[endpoint] = {
+            status: response.status,
+            statusText: response.statusText,
+            data: data,
+            duration: `${duration}ms`
+          };
+        } catch (error) {
+          results[endpoint] = { error: error.message };
+        }
+      }
+      
+      apiOutput.textContent = JSON.stringify(results, null, 2);
+    });
+
+    // Run checks on load
+    checkEnv();
+  </script>
+</body>
+</html>

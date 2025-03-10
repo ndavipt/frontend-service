@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Instagram AI Leaderboard - Static Fallback</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f8f9fa;
+      color: #333;
+    }
+    h1 {
+      color: #E1306C;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .profile-card {
+      background-color: white;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      display: flex;
+      align-items: center;
+    }
+    .profile-image {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      margin-right: 15px;
+      object-fit: cover;
+    }
+    .profile-info {
+      flex-grow: 1;
+    }
+    .profile-stats {
+      display: flex;
+      margin-top: 10px;
+    }
+    .stat {
+      margin-right: 20px;
+      text-align: center;
+    }
+    .stat-value {
+      font-weight: bold;
+      font-size: 18px;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+    }
+    .username {
+      color: #405DE6;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .bio {
+      color: #666;
+      margin-top: 5px;
+      font-size: 14px;
+    }
+    .followers {
+      font-weight: bold;
+      color: #262626;
+    }
+    .rank {
+      font-size: 24px;
+      font-weight: bold;
+      margin-right: 15px;
+      color: #E1306C;
+      min-width: 30px;
+      text-align: center;
+    }
+    .loading {
+      text-align: center;
+      padding: 50px;
+      font-size: 18px;
+      color: #666;
+    }
+    .error {
+      background-color: #ffebee;
+      color: #c62828;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    button {
+      background-color: #E1306C;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover {
+      background-color: #d62e6a;
+    }
+    .button-container {
+      text-align: center;
+      margin: 20px 0;
+    }
+    .change-positive {
+      color: #4caf50;
+    }
+    .change-negative {
+      color: #f44336;
+    }
+  </style>
+</head>
+<body>
+  <h1>Instagram AI Leaderboard</h1>
+  
+  <div class="button-container">
+    <button id="loadData">Load Leaderboard Data</button>
+  </div>
+  
+  <div id="status"></div>
+  
+  <div id="leaderboard"></div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const statusEl = document.getElementById('status');
+      const leaderboardEl = document.getElementById('leaderboard');
+      const loadButton = document.getElementById('loadData');
+      
+      // Format number with commas
+      function formatNumber(num) {
+        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      }
+      
+      // Function to fetch data from various possible endpoints
+      async function fetchLeaderboardData() {
+        statusEl.innerHTML = '<div class="loading">Loading leaderboard data...</div>';
+        leaderboardEl.innerHTML = '';
+        
+        // Try different endpoints in sequence
+        const endpoints = [
+          '/api/leaderboard',
+          'https://insta-leaderboard-api.onrender.com/api/leaderboard',
+          'https://scraper-service-907s.onrender.com/profiles',
+          '/api/test-data'
+        ];
+        
+        let data = null;
+        let success = false;
+        let errorMessages = [];
+        
+        for (const endpoint of endpoints) {
+          try {
+            console.log(`Trying to fetch from ${endpoint}...`);
+            statusEl.innerHTML = `<div class="loading">Trying to fetch from ${endpoint}...</div>`;
+            
+            const response = await fetch(endpoint, {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/json'
+              },
+              timeout: 10000
+            });
+            
+            if (!response.ok) {
+              throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            
+            // Handle different API response formats
+            if (result.leaderboard) {
+              // Standard API format
+              data = result.leaderboard;
+              console.log(`Successfully fetched ${data.length} profiles from ${endpoint}`);
+              success = true;
+              break;
+            } else if (Array.isArray(result)) {
+              // Direct scraper format
+              data = result.map((profile, index) => ({
+                ...profile,
+                rank: index + 1,
+                follower_change: 0 // No change data in this format
+              }));
+              console.log(`Successfully fetched ${data.length} profiles from ${endpoint}`);
+              success = true;
+              break;
+            } else {
+              console.log(`Unrecognized data format from ${endpoint}`);
+              errorMessages.push(`Unrecognized data format from ${endpoint}`);
+            }
+          } catch (error) {
+            console.error(`Error fetching from ${endpoint}:`, error);
+            errorMessages.push(`${endpoint}: ${error.message}`);
+          }
+        }
+        
+        if (success) {
+          displayLeaderboard(data);
+        } else {
+          statusEl.innerHTML = `
+            <div class="error">
+              <h3>Failed to load leaderboard data</h3>
+              <p>All endpoints failed with the following errors:</p>
+              <ul>
+                ${errorMessages.map(msg => `<li>${msg}</li>`).join('')}
+              </ul>
+            </div>
+          `;
+        }
+      }
+      
+      // Function to display leaderboard data
+      function displayLeaderboard(profiles) {
+        if (!profiles || profiles.length === 0) {
+          statusEl.innerHTML = '<div class="error">No profile data available</div>';
+          return;
+        }
+        
+        // Sort profiles by follower count (descending)
+        profiles.sort((a, b) => b.follower_count - a.follower_count);
+        
+        // Generate HTML for each profile
+        const profilesHtml = profiles.map((profile, index) => {
+          const rank = profile.rank || (index + 1);
+          const username = profile.username;
+          const followerCount = profile.follower_count || 0;
+          const followerChange = profile.follower_change || 0;
+          const bio = profile.bio || '';
+          
+          // Generate avatar URL if no profile image
+          const profileImg = profile.profile_img_url || 
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=E1306C&color=fff`;
+          
+          // Format follower change with + or - sign and CSS class
+          const changeClass = followerChange > 0 ? 'change-positive' : 
+                             followerChange < 0 ? 'change-negative' : '';
+          const changePrefix = followerChange > 0 ? '+' : '';
+          const changeDisplay = followerChange !== 0 ? 
+            `<span class="${changeClass}">${changePrefix}${formatNumber(followerChange)}</span>` : 
+            '0';
+          
+          return `
+            <div class="profile-card">
+              <div class="rank">${rank}</div>
+              <img src="${profileImg}" alt="${username}" class="profile-image">
+              <div class="profile-info">
+                <a href="https://instagram.com/${username}" target="_blank" class="username">@${username}</a>
+                <p class="bio">${bio}</p>
+                <div class="profile-stats">
+                  <div class="stat">
+                    <div class="stat-value">${formatNumber(followerCount)}</div>
+                    <div class="stat-label">Followers</div>
+                  </div>
+                  <div class="stat">
+                    <div class="stat-value">${changeDisplay}</div>
+                    <div class="stat-label">Change</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+        
+        // Update the DOM
+        statusEl.innerHTML = `<div>Showing ${profiles.length} AI Instagram accounts</div>`;
+        leaderboardEl.innerHTML = profilesHtml;
+      }
+      
+      // Add event listener for load button
+      loadButton.addEventListener('click', fetchLeaderboardData);
+    });
+  </script>
+</body>
+</html>
