@@ -9,5 +9,8 @@ set FLASK_ENV=development
 set PORT=5052
 set SCRAPER_SERVICE_URL=https://scraper-service-907s.onrender.com
 
+echo Scraper Service URL: %SCRAPER_SERVICE_URL%
+echo Port: %PORT%
+
 cd analytics_service
 python app.py
