@@ -141,43 +141,28 @@ def get_account_data():
     """Get account data from the scraper service."""
     try:
         # Get profiles from the scraper microservice
-        response = requests.get(f"{SCRAPER_SERVICE_URL}/profiles", timeout=10)
+        profile_url = f"{SCRAPER_SERVICE_URL}/profiles"
+        logger.info(f"Requesting profiles from scraper service: {profile_url}")
+        
+        response = requests.get(profile_url, timeout=10)
+        logger.info(f"Scraper service response status: {response.status_code}")
         
         if response.status_code == 200:
             profiles = response.json()
             logger.info(f"Retrieved {len(profiles)} profiles from scraper service")
+            
+            # Print the first profile to see its structure
+            if profiles and len(profiles) > 0:
+                logger.info(f"Sample profile data: {profiles[0]}")
+            
             return profiles
         else:
             logger.warning(f"Failed to get profiles from scraper service: {response.status_code}")
+            logger.warning(f"Response content: {response.text[:500]}")
+            return []
     
     except requests.exceptions.RequestException as e:
         logger.error(f"Error connecting to scraper service: {str(e)}")
-    
-    # Generate sample data for testing if no real data available
-    try:
-        # Generate 5 sample accounts
-        sample_data = []
-        for i in range(1, 6):
-            followers = random.randint(10000, 1000000)
-            weekly_growth = int(followers * random.uniform(0.01, 0.05))
-            sample_data.append({
-                "username": f"ai_profile_{i}",
-                "followers": followers,
-                "history": [
-                    {
-                        "timestamp": (datetime.now() - timedelta(days=7)).isoformat(),
-                        "followers": followers - weekly_growth
-                    },
-                    {
-                        "timestamp": datetime.now().isoformat(),
-                        "followers": followers
-                    }
-                ]
-            })
-        logger.info("Generated sample data for testing")
-        return sample_data
-    except Exception as e:
-        logger.error(f"Error generating sample data: {str(e)}")
         return []
 
 @bp.route('/stats/scrape', methods=['GET'])
@@ -197,13 +182,17 @@ def api_growth_stats():
     """Calculate growth statistics for accounts."""
     try:
         # Get account data
+        logger.info("Fetching account data for growth statistics")
         profiles = get_account_data()
         
         if not profiles:
+            logger.warning("No profile data available for growth statistics")
             return jsonify({
                 'error': 'No profile data available',
                 'accounts': []
             }), 404
+            
+        logger.info(f"Processing growth statistics for {len(profiles)} profiles")
         
         # Process profiles to extract growth metrics
         growth_data = []
