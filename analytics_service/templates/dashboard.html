@@ -299,9 +299,13 @@
                     document.getElementById('charts-container').style.display = 'flex';
                     
                     // Update the stats
-                    document.getElementById('total-followers').textContent = (data.total_followers || 0).toLocaleString();
-                    document.getElementById('weekly-growth').textContent = `+${(data.total_weekly_growth || 0).toLocaleString()}`;
-                    document.getElementById('avg-growth-rate').textContent = `${(data.avg_growth_rate || 0).toFixed(2)}%`;
+                    try {
+                        document.getElementById('total-followers').textContent = (data.total_followers || 0).toLocaleString();
+                        document.getElementById('weekly-growth').textContent = `+${(data.total_weekly_growth || 0).toLocaleString()}`;
+                        document.getElementById('avg-growth-rate').textContent = `${(data.avg_growth_rate || 0).toFixed(2)}%`;
+                    } catch(e) {
+                        console.error("Error updating growth overview stats:", e);
+                    }
                     
                     // Populate growth table
                     const growthTable = document.getElementById('growth-table');
@@ -329,36 +333,42 @@
                     }
                     
                     // Create growth chart
-                    if (data.accounts && data.accounts.length > 0) {
-                        const top10Accounts = data.accounts.slice(0, 10);
-                        
-                        const growthCtx = document.getElementById('growth-chart').getContext('2d');
-                        new Chart(growthCtx, {
-                            type: 'bar',
-                            data: {
-                                labels: top10Accounts.map(a => a.username),
-                                datasets: [{
-                                    label: 'Weekly Growth',
-                                    data: top10Accounts.map(a => a.weekly_growth),
-                                    backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                                    borderColor: 'rgba(75, 192, 192, 1)',
-                                    borderWidth: 1
-                                }]
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                scales: {
-                                    y: {
-                                        beginAtZero: true,
-                                        title: {
-                                            display: true,
-                                            text: 'Followers Gained (7 days)'
+                    try {
+                        if (data.accounts && data.accounts.length > 0) {
+                            const top10Accounts = data.accounts.slice(0, 10);
+                            
+                            const growthCtx = document.getElementById('growth-chart').getContext('2d');
+                            new Chart(growthCtx, {
+                                type: 'bar',
+                                data: {
+                                    labels: top10Accounts.map(a => a.username),
+                                    datasets: [{
+                                        label: 'Weekly Growth',
+                                        data: top10Accounts.map(a => a.weekly_growth),
+                                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                                        borderColor: 'rgba(75, 192, 192, 1)',
+                                        borderWidth: 1
+                                    }]
+                                },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    scales: {
+                                        y: {
+                                            beginAtZero: true,
+                                            title: {
+                                                display: true,
+                                                text: 'Followers Gained (7 days)'
+                                            }
                                         }
                                     }
                                 }
-                            }
-                        });
+                            });
+                        } else {
+                            console.log("No account data available for growth chart");
+                        }
+                    } catch(e) {
+                        console.error("Error creating growth chart:", e);
                     }
                     
                     dataLoaded.growth = true;
