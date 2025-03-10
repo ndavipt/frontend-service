@@ -19,15 +19,6 @@ const analyticsApi = axios.create({
   }
 });
 
-// Direct Scraper API instance (rarely used, mostly accessed through main API)
-const scraperApi = axios.create({
-  baseURL: API_CONFIG.SCRAPER_API,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
-
 // Add cache busting to requests
 const addCacheBuster = (url) => {
   const separator = url.includes('?') ? '&' : '?';
@@ -121,7 +112,7 @@ export const checkServiceStatus = async () => {
   }
 };
 
-export default {
+const apiService = {
   getLeaderboard,
   getGrowthStats,
   getTrends,
@@ -130,3 +121,5 @@ export default {
   triggerScrape,
   checkServiceStatus
 };
+
+export default apiService;
