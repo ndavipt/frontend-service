@@ -1,0 +1,67 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f5f5f5;
+}
+
+/* Fix for the sidebar layout - move cards to touch the left sidebar */
+@media (min-width: 900px) {
+  /* Direct layout override to move content to touch sidebar */
+  main[class*="MuiBox-root"] {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    left: 250px !important;
+    position: absolute !important;
+    width: calc(100% - 270px) !important;  /* Added 20px buffer on right */
+  }
+  
+  /* Style the cards with proper spacing */
+  .MuiCard-root {
+    border-radius: 8px !important;
+    margin-left: 32px !important;  /* Double the left margin */
+    margin-right: 16px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+  }
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Fix the search box width and auto-refresh notification position */
+@media (min-width: 600px) {
+  /* Make search box smaller with fixed width */
+  .MuiTextField-root[placeholder="Search by username or bio"] {
+    width: 280px !important;
+    max-width: 280px !important;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
