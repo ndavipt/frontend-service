@@ -1,0 +1,34 @@
+/* Custom styles for fixing overlap issues */
+
+/* Fix the search box width to be wider but not too large */
+.MuiTextField-root[placeholder="Search by username or bio"] {
+  width: 480px !important;
+  max-width: 90% !important;
+}
+
+/* Ensure follower change notification stays fixed at top-right corner */
+.MuiChip-root[data-follower-change="true"] {
+  position: fixed !important;
+  top: 12px !important;
+  right: 12px !important;
+  z-index: 9999 !important;
+}
+
+/* Force proper positioning for profile card content */
+.MuiCardContent-root {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+/* Fix for any elements that might obscure the chip */
+.MuiCardContent-root > * {
+  z-index: 1 !important;
+}
+
+/* High-priority rule to ensure chip stays on top */
+[data-follower-change="true"] {
+  z-index: 10000 !important;
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+}
