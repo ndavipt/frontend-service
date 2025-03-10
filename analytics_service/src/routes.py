@@ -20,7 +20,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger('analytics_service')
 
+# Configuration
 SCRAPER_SERVICE_URL = os.getenv('SCRAPER_SERVICE_URL', 'https://scraper-service-907s.onrender.com')
+logger.info(f"Routes module using scraper service URL: {SCRAPER_SERVICE_URL}")
 
 @bp.route('/')
 def index():
@@ -30,8 +32,21 @@ def index():
 @bp.route('/health')
 def health_check():
     """Health check endpoint."""
+    # Check connectivity to scraper service
+    scraper_status = "unknown"
+    try:
+        response = requests.get(f"{SCRAPER_SERVICE_URL}/health", timeout=5)
+        if response.status_code == 200:
+            scraper_status = "connected"
+        else:
+            scraper_status = f"error: HTTP {response.status_code}"
+    except requests.exceptions.RequestException as e:
+        scraper_status = f"error: {str(e)}"
+    
     return jsonify({
         'status': 'healthy',
         'service': 'analytics',
-        'timestamp': datetime.now().isoformat()
+        'timestamp': datetime.now().isoformat(),
+        'scraper_connectivity': scraper_status,
+        'scraper_url': SCRAPER_SERVICE_URL
     })
