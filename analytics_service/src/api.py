@@ -199,10 +199,15 @@ def api_growth_stats():
         total_followers = 0
         total_growth = 0
         
+        logger.info(f"Processing {len(profiles)} profiles for growth metrics")
+        
         for profile in profiles:
             username = profile.get('username')
             followers = profile.get('followers', 0)
             history = profile.get('history', [])
+            follower_change = profile.get('follower_change', 0)  # Try to get from profile first
+            
+            logger.info(f"Processing growth for {username} with {len(history) if history else 0} history points")
             
             # Calculate growth metrics
             daily_growth = 0
@@ -210,40 +215,52 @@ def api_growth_stats():
             monthly_growth = 0
             growth_rate = 0
             
-            if history and len(history) > 1:
+            # If we already have follower_change from the main API, use it
+            if follower_change != 0:
+                daily_growth = follower_change
+                weekly_growth = follower_change  # Simplification, assuming the change is since last scrape
+                logger.info(f"{username}: Using follower_change from API: {follower_change}")
+            
+            # Otherwise calculate from history
+            elif history and len(history) > 1:
                 # Sort history by timestamp
                 sorted_history = sorted(history, key=lambda x: x.get('timestamp', ''))
+                logger.info(f"{username}: History range: {sorted_history[0].get('timestamp')} to {sorted_history[-1].get('timestamp')}")
                 
                 # Get current and historical follower counts
                 current_followers = followers
                 
-                # Calculate daily growth (24 hours)
-                daily_cutoff = (datetime.now() - timedelta(days=1)).isoformat()
-                daily_points = [h for h in sorted_history if h.get('timestamp', '') >= daily_cutoff]
-                
-                if daily_points and len(daily_points) > 1:
-                    first_daily = daily_points[0].get('followers', current_followers)
-                    daily_growth = current_followers - first_daily
+                # Calculate from the most recent two points to get change since last scrape
+                if len(sorted_history) >= 2:
+                    latest = sorted_history[-1].get('followers', 0)
+                    previous = sorted_history[-2].get('followers', 0)
+                    follower_change = latest - previous
+                    daily_growth = follower_change  # Simplification, assuming scrapes are daily or less
+                    logger.info(f"{username}: Calculated follower change: {follower_change} (from {previous} to {latest})")
                 
                 # Calculate weekly growth (7 days)
                 weekly_cutoff = (datetime.now() - timedelta(days=7)).isoformat()
                 weekly_points = [h for h in sorted_history if h.get('timestamp', '') >= weekly_cutoff]
                 
-                if weekly_points and len(weekly_points) > 1:
+                if weekly_points and len(weekly_points) > 0:
                     first_weekly = weekly_points[0].get('followers', current_followers)
                     weekly_growth = current_followers - first_weekly
+                    logger.info(f"{username}: Weekly growth: {weekly_growth} over {len(weekly_points)} points")
                 
                 # Calculate monthly growth (30 days)
                 monthly_cutoff = (datetime.now() - timedelta(days=30)).isoformat()
                 monthly_points = [h for h in sorted_history if h.get('timestamp', '') >= monthly_cutoff]
                 
-                if monthly_points and len(monthly_points) > 1:
+                if monthly_points and len(monthly_points) > 0:
                     first_monthly = monthly_points[0].get('followers', current_followers)
                     monthly_growth = current_followers - first_monthly
+                    logger.info(f"{username}: Monthly growth: {monthly_growth} over {len(monthly_points)} points")
                 
                 # Calculate growth rate (percent per day)
                 if followers > 0 and weekly_growth != 0:
                     growth_rate = (weekly_growth / (followers - weekly_growth)) * (100 / 7)
+            else:
+                logger.warning(f"{username}: No history data available")
             
             # Store account growth data
             account_data = {
@@ -252,12 +269,15 @@ def api_growth_stats():
                 'daily_growth': daily_growth,
                 'weekly_growth': weekly_growth,
                 'monthly_growth': monthly_growth,
-                'growth_rate': growth_rate
+                'growth_rate': growth_rate,
+                'follower_change': follower_change  # Add the immediate change
             }
             
             growth_data.append(account_data)
             total_followers += followers
             total_growth += weekly_growth
+            
+            logger.info(f"Added growth data for {username}: daily={daily_growth}, weekly={weekly_growth}, change={follower_change}")
         
         # Calculate aggregate metrics
         avg_growth_rate = 0
