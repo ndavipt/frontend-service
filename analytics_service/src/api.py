@@ -140,11 +140,11 @@ def get_scrape_stats():
 def get_account_data():
     """Get account data from the scraper service."""
     try:
-        # Get profiles from the scraper microservice
-        profile_url = f"{SCRAPER_SERVICE_URL}/profiles"
-        logger.info(f"Requesting profiles from scraper service: {profile_url}")
+        # Get all profiles from the scraper microservice - ensure we get all accounts
+        profile_url = f"{SCRAPER_SERVICE_URL}/profiles?limit=1000"
+        logger.info(f"Requesting all profiles from scraper service: {profile_url}")
         
-        response = requests.get(profile_url, timeout=10)
+        response = requests.get(profile_url, timeout=30)  # Longer timeout to handle more data
         logger.info(f"Scraper service response status: {response.status_code}")
         
         if response.status_code == 200:
@@ -236,9 +236,10 @@ def api_scrape_stats():
         logger.error(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/stats/growth', methods=['GET'])
+@bp.route('/growth', methods=['GET'])  # Main API endpoint
+@bp.route('/stats/growth', methods=['GET'])  # Keep for backward compatibility
 def api_growth_stats():
-    """Calculate growth statistics for accounts."""
+    """Calculate growth statistics for accounts. Primary API endpoint for the main application."""
     try:
         # Get account data
         logger.info("Fetching account data for growth statistics")
@@ -325,15 +326,15 @@ def api_growth_stats():
             else:
                 logger.warning(f"{username}: No history data available")
             
-            # Store account growth data
+            # Store account growth data - focus on the essential fields
             account_data = {
                 'username': username,
                 'followers': followers,
-                'daily_growth': daily_growth,
+                'follower_change': follower_change,  # Most important metric
+                'profile_pic_url': profile.get('profile_pic_url', ''),
+                'bio': profile.get('bio', ''),
                 'weekly_growth': weekly_growth,
-                'monthly_growth': monthly_growth,
-                'growth_rate': growth_rate,
-                'follower_change': follower_change  # Add the immediate change
+                'growth_rate': growth_rate
             }
             
             growth_data.append(account_data)

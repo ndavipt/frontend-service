@@ -393,7 +393,10 @@ def trigger_scrape():
 def get_growth_stats():
     """Get growth statistics (proxy to analytics service)"""
     try:
-        response = requests.get(f"{ANALYTICS_URL}/api/stats/growth", timeout=10)
+        # Add cache busting parameter
+        cache_buster = int(time.time())
+        response = requests.get(f"{ANALYTICS_URL}/growth?_={cache_buster}", timeout=10)
+        
         if response.status_code == 200:
             return jsonify(response.json())
         else:
