@@ -16,4 +16,9 @@ echo Using direct analytics: %REACT_APP_USE_DIRECT_ANALYTICS%
 echo.
 
 cd frontend_service
-npm start
+
+echo Installing dependencies...
+call npm install
+
+echo Starting frontend service...
+call npm start
