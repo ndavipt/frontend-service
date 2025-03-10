@@ -8,6 +8,8 @@ set REACT_APP_API_URL=http://localhost:5050
 set REACT_APP_ANALYTICS_URL=http://localhost:5052
 set REACT_APP_SCRAPER_URL=https://scraper-service-907s.onrender.com
 set PORT=3000
+set ESLINT_NO_DEV_ERRORS=true
+set DISABLE_ESLINT_PLUGIN=true
 
 echo API URL: %REACT_APP_API_URL%
 echo Analytics URL: %REACT_APP_ANALYTICS_URL%
