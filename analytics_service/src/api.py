@@ -8,6 +8,7 @@ import logging
 from collections import defaultdict
 import pandas as pd
 import math
+import random
 
 bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -371,8 +372,8 @@ def api_engagement_analysis():
             # from the profile, but we'll simulate for this example
             
             # In a real implementation, these would come from actual data
-            avg_likes = int(followers * (0.05 + 0.1 * math.random()))  # 5-15% engagement rate
-            avg_comments = int(avg_likes * (0.05 + 0.1 * math.random()))  # 5-15% comment rate
+            avg_likes = int(followers * (0.05 + 0.1 * random.random()))  # 5-15% engagement rate
+            avg_comments = int(avg_likes * (0.05 + 0.1 * random.random()))  # 5-15% comment rate
             
             engagement_rate = ((avg_likes + avg_comments) / followers * 100) if followers > 0 else 0
             
