@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instagram AI Leaderboard - Analytics Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f8f9fa;
+        }
+        .stats-card {
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .card-header {
+            font-weight: bold;
+            background-color: #f7f7f7;
+        }
+        .chart-container {
+            height: 300px;
+            margin-top: 20px;
+        }
+        .status-indicator {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-success {
+            background-color: #28a745;
+        }
+        .status-failure {
+            background-color: #dc3545;
+        }
+        .trend-up {
+            color: #28a745;
+        }
+        .trend-down {
+            color: #dc3545;
+        }
+        .trend-neutral {
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-12">
+                <h1 class="mb-3">Analytics Dashboard</h1>
+                <p class="text-muted">Instagram AI Leaderboard Project</p>
+                <div id="loading" class="alert alert-info">Loading analytics data...</div>
+                <div id="error" class="alert alert-danger" style="display: none;"></div>
+            </div>
+        </div>
+        
+        <div class="row mb-4" id="stats-overview" style="display: none;">
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <div class="card-header">Total Scrapes</div>
+                    <div class="card-body">
+                        <h2 id="total-scrapes">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <div class="card-header">Success Rate</div>
+                    <div class="card-body">
+                        <h2 id="success-rate">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <div class="card-header">Avg. Scrape Time</div>
+                    <div class="card-body">
+                        <h2 id="avg-time">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <div class="card-header">Scrapes per Day</div>
+                    <div class="card-body">
+                        <h2 id="scrapes-per-day">-</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mb-4" id="growth-overview" style="display: none;">
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <div class="card-header">Total Followers</div>
+                    <div class="card-body">
+                        <h2 id="total-followers">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <div class="card-header">Weekly Growth</div>
+                    <div class="card-body">
+                        <h2 id="weekly-growth">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <div class="card-header">Avg. Growth Rate</div>
+                    <div class="card-body">
+                        <h2 id="avg-growth-rate">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <div class="card-header">Trend Direction</div>
+                    <div class="card-body">
+                        <h2 id="trend-direction">-</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mb-4" id="charts-container" style="display: none;">
+            <div class="col-md-6">
+                <div class="card stats-card">
+                    <div class="card-header">Daily Follower Trends</div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="followers-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card stats-card">
+                    <div class="card-header">Growth By Account</div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="growth-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mb-4" id="tables-container" style="display: none;">
+            <div class="col-md-6">
+                <div class="card stats-card">
+                    <div class="card-header">Top Growth Accounts</div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Followers</th>
+                                        <th>Weekly Growth</th>
+                                        <th>Growth Rate</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="growth-table">
+                                    <!-- Will be populated with JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card stats-card">
+                    <div class="card-header">Recent Scrape Operations</div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Duration</th>
+                                        <th>Accounts</th>
+                                        <th>Success Rate</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent-scrapes">
+                                    <!-- Will be populated with JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Track loading status for multiple data sources
+            const dataLoaded = {
+                scrape: false,
+                growth: false,
+                trends: false
+            };
+            
+            function checkAllLoaded() {
+                if (dataLoaded.scrape && dataLoaded.growth && dataLoaded.trends) {
+                    document.getElementById('loading').style.display = 'none';
+                }
+            }
+            
+            // Handle error displays
+            function showError(message) {
+                document.getElementById('loading').style.display = 'none';
+                const errorEl = document.getElementById('error');
+                errorEl.textContent = message;
+                errorEl.style.display = 'block';
+            }
+            
+            // 1. Load scrape stats
+            fetch('/api/stats/scrape')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Show container
+                    document.getElementById('stats-overview').style.display = 'flex';
+                    document.getElementById('tables-container').style.display = 'flex';
+                    
+                    // Update the stats
+                    document.getElementById('total-scrapes').textContent = data.total_scrapes || 0;
+                    document.getElementById('success-rate').textContent = `${(data.success_rate || 0).toFixed(1)}%`;
+                    document.getElementById('avg-time').textContent = `${(data.avg_scrape_time || 0).toFixed(2)}s`;
+                    document.getElementById('scrapes-per-day').textContent = (data.scrapes_per_day || 0).toFixed(1);
+                    
+                    // Populate recent scrapes table
+                    const recentTable = document.getElementById('recent-scrapes');
+                    
+                    // Get the 5 most recent scrapes
+                    const recentScrapes = (data.scrapes || []).slice(-5).reverse();
+                    
+                    recentScrapes.forEach(scrape => {
+                        const row = document.createElement('tr');
+                        
+                        // Format the timestamp
+                        const date = new Date(scrape.timestamp);
+                        const formattedDate = date.toLocaleString();
+                        
+                        // Calculate success rate for this scrape
+                        const successRate = scrape.accounts_total > 0 
+                            ? (scrape.accounts_successful / scrape.accounts_total * 100).toFixed(1)
+                            : 0;
+                        
+                        row.innerHTML = `
+                            <td>${formattedDate}</td>
+                            <td>${scrape.duration_seconds?.toFixed(2) || '-'} sec</td>
+                            <td>${scrape.accounts_successful || 0}/${scrape.accounts_total || 0}</td>
+                            <td>${successRate}%</td>
+                        `;
+                        
+                        recentTable.appendChild(row);
+                    });
+                    
+                    if (recentScrapes.length === 0) {
+                        const row = document.createElement('tr');
+                        row.innerHTML = '<td colspan="4" class="text-center">No scrape operations recorded yet</td>';
+                        recentTable.appendChild(row);
+                    }
+                    
+                    dataLoaded.scrape = true;
+                    checkAllLoaded();
+                })
+                .catch(error => {
+                    console.error('Error fetching scrape stats:', error);
+                    showError(`Error loading scrape statistics: ${error.message}`);
+                });
+            
+            // 2. Load growth stats
+            fetch('/api/stats/growth')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Show container
+                    document.getElementById('growth-overview').style.display = 'flex';
+                    document.getElementById('charts-container').style.display = 'flex';
+                    
+                    // Update the stats
+                    document.getElementById('total-followers').textContent = (data.total_followers || 0).toLocaleString();
+                    document.getElementById('weekly-growth').textContent = `+${(data.total_weekly_growth || 0).toLocaleString()}`;
+                    document.getElementById('avg-growth-rate').textContent = `${(data.avg_growth_rate || 0).toFixed(2)}%`;
+                    
+                    // Populate growth table
+                    const growthTable = document.getElementById('growth-table');
+                    
+                    // Get top 5 accounts by growth rate
+                    const topAccounts = (data.accounts || []).slice(0, 5);
+                    
+                    topAccounts.forEach(account => {
+                        const row = document.createElement('tr');
+                        
+                        row.innerHTML = `
+                            <td>${account.username}</td>
+                            <td>${account.followers.toLocaleString()}</td>
+                            <td>${account.weekly_growth > 0 ? '+' : ''}${account.weekly_growth.toLocaleString()}</td>
+                            <td>${account.growth_rate.toFixed(2)}%</td>
+                        `;
+                        
+                        growthTable.appendChild(row);
+                    });
+                    
+                    if (topAccounts.length === 0) {
+                        const row = document.createElement('tr');
+                        row.innerHTML = '<td colspan="4" class="text-center">No account growth data available</td>';
+                        growthTable.appendChild(row);
+                    }
+                    
+                    // Create growth chart
+                    if (data.accounts && data.accounts.length > 0) {
+                        const top10Accounts = data.accounts.slice(0, 10);
+                        
+                        const growthCtx = document.getElementById('growth-chart').getContext('2d');
+                        new Chart(growthCtx, {
+                            type: 'bar',
+                            data: {
+                                labels: top10Accounts.map(a => a.username),
+                                datasets: [{
+                                    label: 'Weekly Growth',
+                                    data: top10Accounts.map(a => a.weekly_growth),
+                                    backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                                    borderColor: 'rgba(75, 192, 192, 1)',
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Followers Gained (7 days)'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    
+                    dataLoaded.growth = true;
+                    checkAllLoaded();
+                })
+                .catch(error => {
+                    console.error('Error fetching growth stats:', error);
+                    // Continue loading other data
+                    dataLoaded.growth = true;
+                    checkAllLoaded();
+                });
+            
+            // 3. Load trend data
+            fetch('/api/stats/trends')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Update trend direction indicator
+                    const trendDirection = data.trend_direction || 'stable';
+                    const trendDirectionEl = document.getElementById('trend-direction');
+                    
+                    if (trendDirection === 'increasing') {
+                        trendDirectionEl.innerHTML = '<span class="trend-up">↑ Increasing</span>';
+                    } else if (trendDirection === 'decreasing') {
+                        trendDirectionEl.innerHTML = '<span class="trend-down">↓ Decreasing</span>';
+                    } else {
+                        trendDirectionEl.innerHTML = '<span class="trend-neutral">→ Stable</span>';
+                    }
+                    
+                    // Create followers trend chart
+                    if (data.trend_data && data.trend_data.length > 0) {
+                        const trendData = data.trend_data;
+                        
+                        const followersCtx = document.getElementById('followers-chart').getContext('2d');
+                        new Chart(followersCtx, {
+                            type: 'line',
+                            data: {
+                                labels: trendData.map(d => d.date),
+                                datasets: [{
+                                    label: 'Average Followers',
+                                    data: trendData.map(d => d.average_followers),
+                                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                    borderColor: 'rgba(54, 162, 235, 1)',
+                                    borderWidth: 2,
+                                    tension: 0.1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: false,
+                                        title: {
+                                            display: true,
+                                            text: 'Average Followers'
+                                        }
+                                    },
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: 'Date'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    
+                    dataLoaded.trends = true;
+                    checkAllLoaded();
+                })
+                .catch(error => {
+                    console.error('Error fetching trend data:', error);
+                    // Continue loading other data
+                    dataLoaded.trends = true;
+                    checkAllLoaded();
+                });
+        });
+    </script>
+</body>
+</html>
