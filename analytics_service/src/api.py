@@ -348,8 +348,8 @@ def api_growth_stats():
         if total_followers - total_growth > 0:
             avg_growth_rate = (total_growth / (total_followers - total_growth)) * (100 / 7)
         
-        # Sort by weekly growth rate (descending)
-        growth_data.sort(key=lambda x: x.get('growth_rate', 0), reverse=True)
+        # Sort by username (alphabetically)
+        growth_data.sort(key=lambda x: x.get('username', '').lower())
         
         return jsonify({
             'total_accounts': len(growth_data),

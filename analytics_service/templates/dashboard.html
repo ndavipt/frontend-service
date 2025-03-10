@@ -133,9 +133,9 @@
         <!-- Charts removed as per request -->
         
         <div class="row mb-4" id="tables-container" style="display: none;">
-            <div class="col-md-6">
+            <div class="col-md-12">
                 <div class="card stats-card">
-                    <div class="card-header">Recent Follower Changes</div>
+                    <div class="card-header">All Account Follower Changes</div>
                     <div class="card-body">
                         <div class="table-responsive">
                             <table class="table table-striped">
@@ -155,7 +155,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-12">
                 <div class="card stats-card">
                     <div class="card-header">Recent Scrape Operations</div>
                     <div class="card-body">
@@ -292,10 +292,10 @@
                     // Populate growth table
                     const growthTable = document.getElementById('growth-table');
                     
-                    // Get top 5 accounts by growth rate
-                    const topAccounts = (data.accounts || []).slice(0, 5);
+                    // Get all accounts - not just top 5
+                    const allAccounts = data.accounts || [];
                     
-                    topAccounts.forEach(account => {
+                    allAccounts.forEach(account => {
                         const row = document.createElement('tr');
                         
                         const followerChange = account.follower_change || 0;
@@ -311,7 +311,7 @@
                         growthTable.appendChild(row);
                     });
                     
-                    if (topAccounts.length === 0) {
+                    if (allAccounts.length === 0) {
                         const row = document.createElement('tr');
                         row.innerHTML = '<td colspan="4" class="text-center">No account growth data available</td>';
                         growthTable.appendChild(row);
