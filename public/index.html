@@ -21,9 +21,9 @@
           // Check if the React app has rendered
           const rootEl = document.getElementById('root');
           if (rootEl && rootEl.children.length === 0) {
-            console.log('React app failed to load within timeout, redirecting to static version');
-            // Redirect to the static version
-            window.location.href = '/static-data.html?source=timeout';
+            console.log('React app failed to load within timeout, redirecting to simple version');
+            // Redirect to the simple version
+            window.location.href = '/simple.html?source=timeout';
           }
         }, APP_LOAD_TIMEOUT);
         
@@ -39,8 +39,8 @@
         console.error('Uncaught error:', e.error || e.message);
         const rootEl = document.getElementById('root');
         if (rootEl && rootEl.children.length === 0) {
-          console.log('React app encountered an error, redirecting to static version');
-          window.location.href = '/static-data.html?source=error&msg=' + encodeURIComponent(e.message || 'Unknown error');
+          console.log('React app encountered an error, redirecting to simple version');
+          window.location.href = '/simple.html?source=error&msg=' + encodeURIComponent(e.message || 'Unknown error');
         }
       });
     </script>
@@ -48,7 +48,7 @@
   <body>
     <noscript>
       You need to enable JavaScript to run this app. Alternatively, 
-      <a href="/static-data.html?source=noscript">view a static version</a>.
+      <a href="/simple.html?source=noscript">view a simple version</a>.
     </noscript>
     <div id="root"></div>
   </body>
