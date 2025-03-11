@@ -12,9 +12,44 @@
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title>Instagram AI Leaderboard</title>
+    <script>
+      // Set a timeout to check if the app loaded properly
+      const APP_LOAD_TIMEOUT = 10000; // 10 seconds
+      
+      window.addEventListener('load', function() {
+        const loadTimeout = setTimeout(function() {
+          // Check if the React app has rendered
+          const rootEl = document.getElementById('root');
+          if (rootEl && rootEl.children.length === 0) {
+            console.log('React app failed to load within timeout, redirecting to static version');
+            // Redirect to the static version
+            window.location.href = '/static-data.html?source=timeout';
+          }
+        }, APP_LOAD_TIMEOUT);
+        
+        // Clear the timeout if the app loads successfully
+        window.addEventListener('appLoaded', function() {
+          clearTimeout(loadTimeout);
+          console.log('React app loaded successfully');
+        });
+      });
+      
+      // Handle uncaught errors, which might indicate the app failed to load
+      window.addEventListener('error', function(e) {
+        console.error('Uncaught error:', e.error || e.message);
+        const rootEl = document.getElementById('root');
+        if (rootEl && rootEl.children.length === 0) {
+          console.log('React app encountered an error, redirecting to static version');
+          window.location.href = '/static-data.html?source=error&msg=' + encodeURIComponent(e.message || 'Unknown error');
+        }
+      });
+    </script>
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <noscript>
+      You need to enable JavaScript to run this app. Alternatively, 
+      <a href="/static-data.html?source=noscript">view a static version</a>.
+    </noscript>
     <div id="root"></div>
   </body>
 </html>

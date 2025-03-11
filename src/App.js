@@ -87,6 +87,12 @@ function App() {
   const [mode, setMode] = useState('light');
   const theme = getTheme(mode);
 
+  // Signal that the app has loaded successfully
+  React.useEffect(() => {
+    window.dispatchEvent(new Event('appLoaded'));
+    console.log('App component mounted successfully');
+  }, []);
+
   // Toggle dark/light mode
   const toggleTheme = () => {
     setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
