@@ -77,22 +77,57 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
   try {
     // Add a cache busting parameter when force refresh is requested
     const params = forceRefresh ? { _t: Date.now() } : {};
-    const response = await api.get(API_ENDPOINTS.leaderboard, { params });
     
-    // Log follower change stats for debugging
-    if (response.data && response.data.leaderboard) {
-      const profiles = response.data.leaderboard;
-      const changesCount = profiles.filter(p => p.follower_change !== 0).length;
-      console.log(`Leaderboard data contains ${profiles.length} profiles, ${changesCount} with non-zero follower changes`);
+    try {
+      // First try using the standard API endpoint
+      const response = await api.get(API_ENDPOINTS.leaderboard, { params });
       
-      // Log a few examples of follower changes for debugging
-      const examples = profiles.slice(0, 3).map(p => `${p.username}: ${p.follower_change}`);
-      console.log(`Example follower changes: ${examples.join(', ')}`);
+      // Log follower change stats for debugging
+      if (response.data && response.data.leaderboard) {
+        const profiles = response.data.leaderboard;
+        const changesCount = profiles.filter(p => p.follower_change !== 0).length;
+        console.log(`Leaderboard data contains ${profiles.length} profiles, ${changesCount} with non-zero follower changes`);
+        
+        // Log a few examples of follower changes for debugging
+        const examples = profiles.slice(0, 3).map(p => `${p.username}: ${p.follower_change}`);
+        console.log(`Example follower changes: ${examples.join(', ')}`);
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.log('Error fetching from primary API, trying scraper service directly', error);
+      
+      // If the primary API fails, try fetching directly from the scraper service
+      const scraperUrl = process.env.REACT_APP_SCRAPER_URL || 
+                        (window._env_ && window._env_.REACT_APP_SCRAPER_URL) || 
+                        'https://scraper-service-907s.onrender.com';
+                        
+      console.log(`Trying scraper service at ${scraperUrl}/profiles`);
+      const scraperResponse = await axios.get(`${scraperUrl}/profiles`);
+      
+      if (Array.isArray(scraperResponse.data)) {
+        // Format the data to match our expected structure
+        // The scraper service returns an array of profiles directly
+        const formattedData = {
+          leaderboard: scraperResponse.data.map((profile, index) => ({
+            username: profile.username,
+            bio: profile.biography || '',
+            follower_count: profile.follower_count,
+            profile_img_url: profile.profile_pic_url,
+            follower_change: 0, // No change data available from scraper directly
+            rank: index + 1
+          })),
+          updated_at: new Date().toISOString()
+        };
+        
+        console.log(`Successfully retrieved ${formattedData.leaderboard.length} profiles from scraper service`);
+        return formattedData;
+      } else {
+        throw new Error('Unexpected response format from scraper service');
+      }
     }
-    
-    return response.data;
   } catch (error) {
-    console.error('Error fetching leaderboard:', error);
+    console.error('Error fetching leaderboard from all sources:', error);
     throw error;
   }
 };

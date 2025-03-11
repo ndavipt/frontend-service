@@ -6,8 +6,10 @@
 export const API_PORT = 5050;
 export const API_URL = process.env.REACT_APP_API_URL || `http://localhost:${API_PORT}`;
 
-// Scraper microservice URL (this is accessed via proxy through our backend app)
-export const SCRAPER_API_URL = process.env.REACT_APP_SCRAPER_API_URL || '/api';
+// Scraper microservice URL (can be accessed directly or through proxy)
+export const SCRAPER_API_URL = process.env.REACT_APP_SCRAPER_URL || 
+                             (window._env_ && window._env_.REACT_APP_SCRAPER_URL) || 
+                             'https://scraper-service-907s.onrender.com';
 
 // API endpoints
 export const API_ENDPOINTS = {
@@ -58,11 +60,15 @@ export const getProfileImageUrl = (profileImgUrl, username) => {
     // Try using the images endpoint first (connects to database)
     return `${IMAGE_ROUTE}/${hash}.jpg`;
   } else if (profileImgUrl && profileImgUrl.startsWith('http')) {
-    // This is a direct URL from the scraper microservice
+    // This is a direct URL from Instagram or the scraper service
     
+    // Try to use the image directly first - most modern browsers support CORS now
+    return profileImgUrl;
+    
+    // Fallback method if CORS is an issue:
     // For better security and to avoid CORS issues, we'll proxy the image through our backend
-    const encodedUrl = encodeURIComponent(profileImgUrl);
-    return `/api/proxy-image?url=${encodedUrl}`;
+    // const encodedUrl = encodeURIComponent(profileImgUrl);
+    // return `/api/proxy-image?url=${encodedUrl}`;
   } else if (profileImgUrl && !profileImgUrl.includes(':')) {
     // This might be a simple ID or hash from the scraper
     // We'll route it through our image endpoint

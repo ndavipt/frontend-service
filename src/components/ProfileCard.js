@@ -116,7 +116,9 @@ const ProfileCard = ({ profile, rank, showRank = true }) => {
   
   // Function to get the profile image URL - uses the config utility function
   const getProfileImage = () => {
-    return getProfileImageUrl(profile.profile_img_url, profile.username);
+    // Handle different field names from different APIs
+    const profileImgUrl = profile.profile_img_url || profile.profile_pic_url || null;
+    return getProfileImageUrl(profileImgUrl, profile.username);
   };
   
   // Function to get a colorful avatar with initials for fallback
