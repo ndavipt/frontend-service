@@ -53,6 +53,26 @@ api.interceptors.response.use(
   }
 );
 
+// Helper function to format scraper data to our expected format
+const formatScraperData = (scraperProfiles) => {
+  // Format the data to match our expected structure
+  // The scraper service returns an array of profiles directly
+  const formattedData = {
+    leaderboard: scraperProfiles.map((profile, index) => ({
+      username: profile.username,
+      bio: profile.biography || '',
+      follower_count: profile.follower_count,
+      profile_img_url: profile.profile_pic_url,
+      follower_change: 0, // No change data available from scraper directly
+      rank: index + 1
+    })),
+    updated_at: new Date().toISOString()
+  };
+  
+  console.log(`Successfully formatted ${formattedData.leaderboard.length} profiles from scraper service`);
+  return formattedData;
+};
+
 // API functions for various endpoints
 
 // Simple test function to verify API connection
@@ -97,31 +117,29 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
     } catch (error) {
       console.log('Error fetching from primary API, trying scraper service directly', error);
       
-      // If the primary API fails, try fetching directly from the scraper service
+      // Try through our Nginx proxy first (avoids CORS issues)
+      console.log('Trying scraper service through local proxy at /scraper/profiles');
+      
+      try {
+        const proxyResponse = await axios.get('/scraper/profiles');
+        if (Array.isArray(proxyResponse.data)) {
+          console.log(`Successfully received ${proxyResponse.data.length} profiles through proxy`);
+          return formatScraperData(proxyResponse.data);
+        }
+      } catch (proxyError) {
+        console.log('Proxy attempt failed, trying direct connection', proxyError);
+      }
+      
+      // If proxy fails, try direct connection as last resort
       const scraperUrl = process.env.REACT_APP_SCRAPER_URL || 
                         (window._env_ && window._env_.REACT_APP_SCRAPER_URL) || 
                         'https://scraper-service-907s.onrender.com';
                         
-      console.log(`Trying scraper service at ${scraperUrl}/profiles`);
+      console.log(`Trying scraper service directly at ${scraperUrl}/profiles`);
       const scraperResponse = await axios.get(`${scraperUrl}/profiles`);
       
       if (Array.isArray(scraperResponse.data)) {
-        // Format the data to match our expected structure
-        // The scraper service returns an array of profiles directly
-        const formattedData = {
-          leaderboard: scraperResponse.data.map((profile, index) => ({
-            username: profile.username,
-            bio: profile.biography || '',
-            follower_count: profile.follower_count,
-            profile_img_url: profile.profile_pic_url,
-            follower_change: 0, // No change data available from scraper directly
-            rank: index + 1
-          })),
-          updated_at: new Date().toISOString()
-        };
-        
-        console.log(`Successfully retrieved ${formattedData.leaderboard.length} profiles from scraper service`);
-        return formattedData;
+        return formatScraperData(scraperResponse.data);
       } else {
         throw new Error('Unexpected response format from scraper service');
       }
