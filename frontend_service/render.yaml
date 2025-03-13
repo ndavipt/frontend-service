@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: insta-leaderboard-frontend
+    env: docker
+    buildCommand: docker build -t insta-leaderboard-frontend .
+    startCommand: docker run -p 10000:80 insta-leaderboard-frontend
+    envVars:
+      - key: REACT_APP_API_URL
+        value: https://insta-leaderboard-api.onrender.com
+      - key: REACT_APP_ANALYTICS_URL
+        value: https://insta-leaderboard-analytics.onrender.com
+      - key: REACT_APP_SCRAPER_URL
+        value: https://scraper-service-907s.onrender.com
+    healthCheckPath: /health
+    numInstances: 1
+    plan: free
+    region: ohio
+    domains:
+      - insta-leaderboard.onrender.com
+    autoDeploy: true
