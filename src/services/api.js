@@ -4,6 +4,7 @@ import {
   API_URL as CONFIG_API_URL, 
   API_ENDPOINTS, 
   LOGIC_SERVICE_URL as CONFIG_LOGIC_URL,
+  DIRECT_LOGIC_SERVICE_URL,
   LOGIC_API 
 } from '../config';
 
@@ -25,9 +26,8 @@ const API_URL = runtimeEnv.REACT_APP_API_URL ||
 // Configure Logic Service URL
 const LOGIC_URL = runtimeEnv.REACT_APP_LOGIC_URL || 
                  process.env.REACT_APP_LOGIC_URL || 
-                 '/logic' || // Use local proxy first (relative URL)
                  CONFIG_LOGIC_URL || 
-                 'https://logic-service.onrender.com';
+                 '/logic'; // Use local proxy as default
 
 // Create an Axios instance with default config
 const api = axios.create({
@@ -282,7 +282,7 @@ const enhanceProfilesWithAnalytics = async (profiles) => {
           baseUrl = LOGIC_URL;
         } catch (proxyError) {
           // If that fails, try the direct URL
-          baseUrl = 'https://logic-service.onrender.com';
+          baseUrl = DIRECT_LOGIC_SERVICE_URL;
         }
         
         // Get current profile data from Logic Service
@@ -337,7 +337,7 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
           console.log(`Failed to connect to Logic Service via proxy, trying direct URL`, proxyError);
           
           // 2. Try direct URL as fallback
-          const directEndpoint = 'https://logic-service.onrender.com/api/v1/profiles';
+          const directEndpoint = `${DIRECT_LOGIC_SERVICE_URL}/api/v1/profiles`;
           console.log(`Attempting to fetch profiles from Logic Service direct URL at ${directEndpoint}`);
           logicProfilesResponse = await axios.get(directEndpoint);
           console.log(`Successfully connected to Logic Service at direct URL`);

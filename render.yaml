@@ -11,6 +11,10 @@ services:
         value: https://insta-leaderboard-analytics.onrender.com
       - key: REACT_APP_SCRAPER_URL
         value: https://scraper-service-907s.onrender.com
+      - key: REACT_APP_LOGIC_URL
+        value: https://logic-service.onrender.com
+      - key: NODE_TLS_REJECT_UNAUTHORIZED
+        value: "0"
     healthCheckPath: /health
     numInstances: 1
     plan: free
