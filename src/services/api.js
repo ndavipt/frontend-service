@@ -229,11 +229,11 @@ const MOCK_PROFILES = [
 // Helper function to get profile analytics data from Logic Service
 export const fetchProfileAnalytics = async (username) => {
   try {
-    // Make parallel requests to Logic Service for different analytics
+    // Make parallel requests to Logic Service for different analytics using direct URLs
     const [growthResponse, changesResponse, rollingAvgResponse] = await Promise.all([
-      logicApi.get(`${LOGIC_API.growth}${username}`),
-      logicApi.get(`${LOGIC_API.changes}${username}`),
-      logicApi.get(`${LOGIC_API.rollingAverage}${username}`)
+      axios.get(`${LOGIC_URL}/api/v1/analytics/growth/${username}`),
+      axios.get(`${LOGIC_URL}/api/v1/analytics/changes/${username}`),
+      axios.get(`${LOGIC_URL}/api/v1/analytics/rolling-average/${username}`)
     ]);
     
     // Return combined analytics data
@@ -259,8 +259,8 @@ const enhanceProfilesWithAnalytics = async (profiles) => {
   const enhancedProfiles = await Promise.all(
     profiles.map(async (profile) => {
       try {
-        // Get current profile data from Logic Service
-        const currentResponse = await logicApi.get(`${LOGIC_API.currentProfile}${profile.username}`);
+        // Get current profile data from Logic Service using direct URL
+        const currentResponse = await axios.get(`${LOGIC_URL}/api/v1/profiles/current/${profile.username}`);
         const analytics = await fetchProfileAnalytics(profile.username);
         
         // Extract relevant metrics
@@ -297,8 +297,10 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
     try {
       // First try using the Logic Service to get profiles
       try {
-        console.log(`Attempting to fetch profiles from Logic Service at ${LOGIC_URL}${LOGIC_API.profiles}`);
-        const logicProfilesResponse = await logicApi.get(LOGIC_API.profiles);
+        // Testing direct URL instead of using axios instance with baseURL
+        const logicEndpoint = `${LOGIC_URL}/api/v1/profiles`;
+        console.log(`Attempting to fetch profiles from Logic Service at ${logicEndpoint}`);
+        const logicProfilesResponse = await axios.get(logicEndpoint);
         console.log(`SUCCESS! Received ${logicProfilesResponse.data?.length} profiles from Logic Service`);
         
         if (Array.isArray(logicProfilesResponse.data) && logicProfilesResponse.data.length > 0) {
@@ -492,8 +494,8 @@ export const fetchTrends = async (forceRefresh = false) => {
     try {
       // First try using the Logic Service to get history for all profiles
       try {
-        // Get all accounts from Logic Service
-        const accountsResponse = await logicApi.get(LOGIC_API.accounts);
+        // Get all accounts from Logic Service using direct URL
+        const accountsResponse = await axios.get(`${LOGIC_URL}/api/v1/accounts`);
         
         if (Array.isArray(accountsResponse.data) && accountsResponse.data.length > 0) {
           console.log(`Fetching history for ${accountsResponse.data.length} accounts from Logic Service`);
@@ -502,7 +504,7 @@ export const fetchTrends = async (forceRefresh = false) => {
           const trendsData = await Promise.all(
             accountsResponse.data.map(async (account) => {
               try {
-                const historyResponse = await logicApi.get(`${LOGIC_API.profileHistory}${account.username}`);
+                const historyResponse = await axios.get(`${LOGIC_URL}/api/v1/profiles/history/${account.username}`);
                 
                 if (historyResponse.data && historyResponse.data.history) {
                   // Format the history data
