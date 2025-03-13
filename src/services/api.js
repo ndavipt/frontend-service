@@ -333,6 +333,13 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
           
           logicProfilesResponse = await axios.get(logicEndpoint);
           console.log(`Successfully connected to Logic Service at ${logicEndpoint}`);
+          console.log('Logic service response data:', logicProfilesResponse.data);
+          
+          // Check if we got our fallback message instead of actual data
+          if (logicProfilesResponse.data && logicProfilesResponse.data.status === 'fallback') {
+            console.log('Received fallback response from proxy, trying direct URL');
+            throw new Error('Fallback response received');
+          }
         } catch (proxyError) {
           console.log(`Failed to connect to Logic Service via proxy, trying direct URL`, proxyError);
           
@@ -341,6 +348,7 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
           console.log(`Attempting to fetch profiles from Logic Service direct URL at ${directEndpoint}`);
           logicProfilesResponse = await axios.get(directEndpoint);
           console.log(`Successfully connected to Logic Service at direct URL`);
+          console.log('Direct logic service response data:', logicProfilesResponse.data);
         }
         
         console.log(`SUCCESS! Received ${logicProfilesResponse.data?.length} profiles from Logic Service`);
@@ -418,6 +426,14 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
       
       try {
         const proxyResponse = await axios.get('/scraper/profiles');
+        console.log('Proxy response data:', proxyResponse.data);
+        
+        // Check if we got our fallback message instead of actual data
+        if (proxyResponse.data && proxyResponse.data.status === 'fallback') {
+          console.log('Received fallback response, trying direct connection');
+          throw new Error('Fallback response received');
+        }
+        
         if (Array.isArray(proxyResponse.data)) {
           console.log(`Successfully received ${proxyResponse.data.length} profiles through proxy`);
           return formatScraperData(proxyResponse.data);
