@@ -297,8 +297,9 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
     try {
       // First try using the Logic Service to get profiles
       try {
+        console.log(`Attempting to fetch profiles from Logic Service at ${LOGIC_URL}${LOGIC_API.profiles}`);
         const logicProfilesResponse = await logicApi.get(LOGIC_API.profiles);
-        console.log(`Received ${logicProfilesResponse.data?.length} profiles from Logic Service`);
+        console.log(`SUCCESS! Received ${logicProfilesResponse.data?.length} profiles from Logic Service`);
         
         if (Array.isArray(logicProfilesResponse.data) && logicProfilesResponse.data.length > 0) {
           // Format and enhance profiles with analytics data
@@ -337,6 +338,17 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
         }
       } catch (logicError) {
         console.error('Error fetching from Logic Service, falling back to primary API', logicError);
+        console.error(`Failed to fetch from Logic URL: ${LOGIC_URL}${LOGIC_API.profiles}`);
+        console.error('Logic Service Error Details:', {
+          message: logicError.message,
+          status: logicError.response?.status,
+          data: logicError.response?.data,
+          config: {
+            baseURL: logicError.config?.baseURL,
+            url: logicError.config?.url,
+            method: logicError.config?.method
+          }
+        });
       }
       
       // Fallback to the standard API endpoint

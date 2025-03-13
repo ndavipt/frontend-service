@@ -14,6 +14,7 @@ export const SCRAPER_API_URL = process.env.REACT_APP_SCRAPER_URL ||
 // Logic Service URL - handles all data analytics
 export const LOGIC_SERVICE_URL = process.env.REACT_APP_LOGIC_URL || 
                                (window._env_ && window._env_.REACT_APP_LOGIC_URL) || 
+                               '/logic' ||  // Use local proxy by default
                                'https://logic-service.onrender.com';
 
 // API endpoints
