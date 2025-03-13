@@ -25,6 +25,7 @@ const API_URL = runtimeEnv.REACT_APP_API_URL ||
 // Configure Logic Service URL
 const LOGIC_URL = runtimeEnv.REACT_APP_LOGIC_URL || 
                  process.env.REACT_APP_LOGIC_URL || 
+                 '/logic' || // Use local proxy first (relative URL)
                  CONFIG_LOGIC_URL || 
                  'https://logic-service.onrender.com';
 

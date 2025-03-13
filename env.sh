@@ -19,5 +19,10 @@ for envVar in $(env | grep -o "^REACT_APP_.*"); do
   echo "  $varName: \"$varValue\"," >> /usr/share/nginx/html/env-config.js
 done
 
+# Add default environment variables if not set
+if [ -z "$REACT_APP_LOGIC_URL" ]; then
+  echo "  REACT_APP_LOGIC_URL: \"/logic\"," >> /usr/share/nginx/html/env-config.js
+fi
+
 # Close the object
 echo "}" >> /usr/share/nginx/html/env-config.js

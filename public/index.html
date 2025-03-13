@@ -12,6 +12,12 @@
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title>Instagram AI Leaderboard</title>
+    <!-- Runtime environment configuration -->
+    <script>
+      // Create a default empty _env_ object in case env-config.js isn't available
+      window._env_ = window._env_ || {};
+    </script>
+    <script src="%PUBLIC_URL%/env-config.js"></script>
     <script>
       // Set a timeout to check if the app loaded properly
       const APP_LOAD_TIMEOUT = 10000; // 10 seconds
