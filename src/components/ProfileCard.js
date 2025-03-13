@@ -162,7 +162,7 @@ const ProfileCard = ({ profile, rank, showRank = true }) => {
     return theme.palette.primary.main;
   };
   
-  // Calculate follower change
+  // Calculate follower change using logic service data if available
   const getFollowerChange = () => {
     // First check if profile has follower_change field directly from API
     if (profile.follower_change !== undefined && profile.follower_change !== null) {
@@ -219,6 +219,16 @@ const ProfileCard = ({ profile, rank, showRank = true }) => {
   
   // Calculate 12-hour follower growth
   const get12HourGrowth = () => {
+    // First check if profile has twelve_hour_change field directly from Logic Service API
+    if (profile.twelve_hour_change !== undefined && profile.twelve_hour_change !== null) {
+      return {
+        value: profile.twelve_hour_change,
+        percentage: profile.follower_count > 0 ? (profile.twelve_hour_change / profile.follower_count) * 100 : 0,
+        hourlyRate: profile.twelve_hour_change / 12,
+        hoursPassed: 12
+      };
+    }
+    
     // We need trends data to calculate this
     if (!trendsData || !trendsData.trends) return null;
     
@@ -338,6 +348,36 @@ const ProfileCard = ({ profile, rank, showRank = true }) => {
     return null; // Not enough data points
   };
   
+  // Get 24-hour growth data directly from Logic Service
+  const get24HourGrowth = () => {
+    // Check if profile has twenty_four_hour_change field directly from Logic Service API
+    if (profile.twenty_four_hour_change !== undefined && profile.twenty_four_hour_change !== null) {
+      return {
+        value: profile.twenty_four_hour_change,
+        percentage: profile.follower_count > 0 ? (profile.twenty_four_hour_change / profile.follower_count) * 100 : 0,
+        hourlyRate: profile.twenty_four_hour_change / 24,
+        hoursPassed: 24
+      };
+    }
+    
+    // Could fallback to calculated value from trends if needed, but for now just return null
+    return null;
+  };
+  
+  // Get 7-day rolling average directly from Logic Service
+  const get7DayAverage = () => {
+    // Check if profile has seven_day_average field directly from Logic Service API
+    if (profile.seven_day_average !== undefined && profile.seven_day_average !== null) {
+      return {
+        value: profile.seven_day_average,
+        percentage: profile.follower_count > 0 ? (profile.seven_day_average / profile.follower_count) * 100 : 0
+      };
+    }
+    
+    // Could fallback to calculated value from trends if needed, but for now just return null
+    return null;
+  };
+  
   // Get follower change data from the API (direct from profile.follower_change)
   let followerChange = null;
   
@@ -388,6 +428,12 @@ const ProfileCard = ({ profile, rank, showRank = true }) => {
     };
     console.log(`No 12-hour growth data for ${profile.username}, using simple follower change: ${value}`);
   }
+  
+  // Get 24-hour growth data
+  let twentyFourHourGrowth = get24HourGrowth();
+  
+  // Get 7-day rolling average
+  let sevenDayAverage = get7DayAverage();
   
   // Determine change icon and color
   const getChangeIcon = (change) => {
@@ -504,7 +550,7 @@ const ProfileCard = ({ profile, rank, showRank = true }) => {
               {/* 12-hour growth chip */}
               {twelveHourGrowth && (
                 <Tooltip 
-                  title={`12-hour growth: ${formatChange(twelveHourGrowth)} (${twelveHourGrowth.percentage.toFixed(2)}%) over ${twelveHourGrowth.hoursPassed.toFixed(1)} hours`}
+                  title={`12-hour growth: ${formatChange(twelveHourGrowth)} (${twelveHourGrowth.percentage.toFixed(2)}%) over ${twelveHourGrowth.hoursPassed?.toFixed(1) || 12} hours`}
                 >
                   <Chip
                     icon={getChangeIcon(twelveHourGrowth)}
@@ -522,6 +568,33 @@ const ProfileCard = ({ profile, rank, showRank = true }) => {
                       border: '1px solid',
                       borderColor: twelveHourGrowth.value > 0 ? 'success.main' : 
                                   twelveHourGrowth.value < 0 ? 'error.main' : 
+                                  'grey.400',
+                    }}
+                  />
+                </Tooltip>
+              )}
+              
+              {/* 24-hour growth chip (mobile version) */}
+              {twentyFourHourGrowth && (
+                <Tooltip 
+                  title={`24-hour growth: ${formatChange(twentyFourHourGrowth)} (${twentyFourHourGrowth.percentage.toFixed(2)}%)`}
+                >
+                  <Chip
+                    icon={getChangeIcon(twentyFourHourGrowth)}
+                    label={`24h: ${formatChange(twentyFourHourGrowth)}`}
+                    color={twentyFourHourGrowth.value > 0 ? 'success' : twentyFourHourGrowth.value < 0 ? 'error' : 'default'}
+                    variant="outlined"
+                    size="small"
+                    sx={{ 
+                      fontSize: '0.7rem',
+                      fontWeight: 'bold',
+                      height: '22px',
+                      '& .MuiChip-icon': {
+                        fontSize: '0.85rem',
+                      },
+                      border: '1px solid',
+                      borderColor: twentyFourHourGrowth.value > 0 ? 'success.main' : 
+                                  twentyFourHourGrowth.value < 0 ? 'error.main' : 
                                   'grey.400',
                     }}
                   />
@@ -655,7 +728,7 @@ const ProfileCard = ({ profile, rank, showRank = true }) => {
                 {/* 12-hour growth chip */}
                 {twelveHourGrowth && (
                   <Tooltip 
-                    title={`12-hour growth: ${formatChange(twelveHourGrowth)} (${twelveHourGrowth.percentage.toFixed(2)}%) over ${twelveHourGrowth.hoursPassed.toFixed(1)} hours`}
+                    title={`12-hour growth: ${formatChange(twelveHourGrowth)} (${twelveHourGrowth.percentage.toFixed(2)}%) over ${twelveHourGrowth.hoursPassed?.toFixed(1) || 12} hours`}
                   >
                     <Chip
                       icon={getChangeIcon(twelveHourGrowth)}
@@ -675,6 +748,64 @@ const ProfileCard = ({ profile, rank, showRank = true }) => {
                         border: '1px solid',
                         borderColor: twelveHourGrowth.value > 0 ? 'success.main' : 
                                     twelveHourGrowth.value < 0 ? 'error.main' : 
+                                    'grey.400',
+                      }}
+                    />
+                  </Tooltip>
+                )}
+                
+                {/* 24-hour growth chip */}
+                {twentyFourHourGrowth && (
+                  <Tooltip 
+                    title={`24-hour growth: ${formatChange(twentyFourHourGrowth)} (${twentyFourHourGrowth.percentage.toFixed(2)}%)`}
+                  >
+                    <Chip
+                      icon={getChangeIcon(twentyFourHourGrowth)}
+                      label={`24h: ${formatChange(twentyFourHourGrowth)}`}
+                      color={twentyFourHourGrowth.value > 0 ? 'success' : twentyFourHourGrowth.value < 0 ? 'error' : 'default'}
+                      variant="outlined"
+                      size="small"
+                      sx={{ 
+                        fontSize: '0.75rem',
+                        fontWeight: 'bold',
+                        height: '24px',
+                        '& .MuiChip-icon': {
+                          fontSize: '1rem',
+                          marginLeft: '4px'
+                        },
+                        boxShadow: 1,
+                        border: '1px solid',
+                        borderColor: twentyFourHourGrowth.value > 0 ? 'success.main' : 
+                                    twentyFourHourGrowth.value < 0 ? 'error.main' : 
+                                    'grey.400',
+                      }}
+                    />
+                  </Tooltip>
+                )}
+                
+                {/* 7-day rolling average chip */}
+                {sevenDayAverage && (
+                  <Tooltip 
+                    title={`7-day rolling average: ${formatChange(sevenDayAverage)} per day (${sevenDayAverage.percentage.toFixed(2)}%)`}
+                  >
+                    <Chip
+                      icon={getChangeIcon(sevenDayAverage)}
+                      label={`7d avg: ${formatChange(sevenDayAverage)}/day`}
+                      color={sevenDayAverage.value > 0 ? 'success' : sevenDayAverage.value < 0 ? 'error' : 'default'}
+                      variant="outlined"
+                      size="small"
+                      sx={{ 
+                        fontSize: '0.75rem',
+                        fontWeight: 'bold',
+                        height: '24px',
+                        '& .MuiChip-icon': {
+                          fontSize: '1rem',
+                          marginLeft: '4px'
+                        },
+                        boxShadow: 1,
+                        border: '1px solid',
+                        borderColor: sevenDayAverage.value > 0 ? 'success.main' : 
+                                    sevenDayAverage.value < 0 ? 'error.main' : 
                                     'grey.400',
                       }}
                     />

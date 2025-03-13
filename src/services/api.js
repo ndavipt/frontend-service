@@ -1,5 +1,11 @@
 import axios from 'axios';
-import { API_PORT, API_URL as CONFIG_API_URL, API_ENDPOINTS } from '../config';
+import { 
+  API_PORT, 
+  API_URL as CONFIG_API_URL, 
+  API_ENDPOINTS, 
+  LOGIC_SERVICE_URL as CONFIG_LOGIC_URL,
+  LOGIC_API 
+} from '../config';
 
 // Determine if we're in development mode
 const isDev = process.env.NODE_ENV === 'development';
@@ -16,9 +22,24 @@ const API_URL = runtimeEnv.REACT_APP_API_URL ||
                 CONFIG_API_URL || 
                 (isDev ? `http://localhost:${API_PORT}` : '');
 
+// Configure Logic Service URL
+const LOGIC_URL = runtimeEnv.REACT_APP_LOGIC_URL || 
+                 process.env.REACT_APP_LOGIC_URL || 
+                 CONFIG_LOGIC_URL || 
+                 'https://logic-service.onrender.com';
+
 // Create an Axios instance with default config
 const api = axios.create({
   baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 30000, // 30 seconds timeout
+});
+
+// Create a separate axios instance for the Logic Service
+const logicApi = axios.create({
+  baseURL: LOGIC_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -45,6 +66,33 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('API Response Error:', error.message);
+    if (error.response) {
+      console.error('Status:', error.response.status);
+      console.error('Data:', error.response.data);
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Add similar interceptors for Logic Service API calls
+logicApi.interceptors.request.use(
+  (config) => {
+    console.log(`Logic API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error('Logic API Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+logicApi.interceptors.response.use(
+  (response) => {
+    console.log(`Logic API Response: ${response.status} from ${response.config.url}`);
+    return response;
+  },
+  (error) => {
+    console.error('Logic API Response Error:', error.message);
     if (error.response) {
       console.error('Status:', error.response.status);
       console.error('Data:', error.response.data);
@@ -177,13 +225,120 @@ const MOCK_PROFILES = [
   }
 ];
 
+// Helper function to get profile analytics data from Logic Service
+export const fetchProfileAnalytics = async (username) => {
+  try {
+    // Make parallel requests to Logic Service for different analytics
+    const [growthResponse, changesResponse, rollingAvgResponse] = await Promise.all([
+      logicApi.get(`${LOGIC_API.growth}${username}`),
+      logicApi.get(`${LOGIC_API.changes}${username}`),
+      logicApi.get(`${LOGIC_API.rollingAverage}${username}`)
+    ]);
+    
+    // Return combined analytics data
+    return {
+      growth: growthResponse.data,
+      changes: changesResponse.data,
+      rollingAverage: rollingAvgResponse.data
+    };
+  } catch (error) {
+    console.error(`Error fetching analytics for ${username}:`, error);
+    // Return empty data on error
+    return {
+      growth: null,
+      changes: null,
+      rollingAverage: null
+    };
+  }
+};
+
+// Enhanced formatter to include analytics data
+const enhanceProfilesWithAnalytics = async (profiles) => {
+  // For each profile in the array, fetch analytics and enhance the profile object
+  const enhancedProfiles = await Promise.all(
+    profiles.map(async (profile) => {
+      try {
+        // Get current profile data from Logic Service
+        const currentResponse = await logicApi.get(`${LOGIC_API.currentProfile}${profile.username}`);
+        const analytics = await fetchProfileAnalytics(profile.username);
+        
+        // Extract relevant metrics
+        const followerChange = analytics.changes?.last_change || 0;
+        const twelveHourChange = analytics.growth?.twelve_hour_change || 0;
+        const twentyFourHourChange = analytics.growth?.twenty_four_hour_change || 0;
+        const sevenDayAverage = analytics.rollingAverage?.seven_day_average || 0;
+        
+        // Enhance profile with analytics data
+        return {
+          ...profile,
+          follower_count: currentResponse.data?.follower_count || profile.follower_count,
+          follower_change: followerChange,
+          twelve_hour_change: twelveHourChange,
+          twenty_four_hour_change: twentyFourHourChange,
+          seven_day_average: sevenDayAverage
+        };
+      } catch (error) {
+        console.error(`Failed to enhance profile for ${profile.username}:`, error);
+        // Return original profile on error
+        return profile;
+      }
+    })
+  );
+  
+  return enhancedProfiles;
+};
+
 export const fetchLeaderboard = async (forceRefresh = false) => {
   try {
     // Add a cache busting parameter when force refresh is requested
     const params = forceRefresh ? { _t: Date.now() } : {};
     
     try {
-      // First try using the standard API endpoint
+      // First try using the Logic Service to get profiles
+      try {
+        const logicProfilesResponse = await logicApi.get(LOGIC_API.profiles);
+        console.log(`Received ${logicProfilesResponse.data?.length} profiles from Logic Service`);
+        
+        if (Array.isArray(logicProfilesResponse.data) && logicProfilesResponse.data.length > 0) {
+          // Format and enhance profiles with analytics data
+          const formattedProfiles = logicProfilesResponse.data.map((profile, index) => ({
+            username: profile.username,
+            bio: profile.biography || '',
+            follower_count: profile.follower_count,
+            profile_img_url: profile.profile_pic_url,
+            follower_change: 0, // Will be replaced with actual data
+            rank: index + 1
+          }));
+          
+          // Enhance with analytics data
+          const enhancedProfiles = await enhanceProfilesWithAnalytics(formattedProfiles);
+          
+          // Sort by follower count (descending) and update ranks
+          const sortedProfiles = enhancedProfiles
+            .sort((a, b) => b.follower_count - a.follower_count)
+            .map((profile, index) => ({
+              ...profile,
+              rank: index + 1
+            }));
+          
+          // Log follower change stats for debugging
+          const changesCount = sortedProfiles.filter(p => p.follower_change !== 0).length;
+          console.log(`Leaderboard data contains ${sortedProfiles.length} profiles, ${changesCount} with non-zero follower changes`);
+          
+          // Log a few examples of follower changes for debugging
+          const examples = sortedProfiles.slice(0, 3).map(p => `${p.username}: ${p.follower_change}`);
+          console.log(`Example follower changes: ${examples.join(', ')}`);
+          
+          return {
+            leaderboard: sortedProfiles,
+            updated_at: new Date().toISOString()
+          };
+        }
+      } catch (logicError) {
+        console.error('Error fetching from Logic Service, falling back to primary API', logicError);
+      }
+      
+      // Fallback to the standard API endpoint
       const response = await api.get(API_ENDPOINTS.leaderboard, { params });
       
       // Log follower change stats for debugging
@@ -322,6 +477,66 @@ export const fetchTrends = async (forceRefresh = false) => {
     const params = forceRefresh ? { _t: Date.now() } : {};
     
     try {
+      // First try using the Logic Service to get history for all profiles
+      try {
+        // Get all accounts from Logic Service
+        const accountsResponse = await logicApi.get(LOGIC_API.accounts);
+        
+        if (Array.isArray(accountsResponse.data) && accountsResponse.data.length > 0) {
+          console.log(`Fetching history for ${accountsResponse.data.length} accounts from Logic Service`);
+          
+          // For each account, fetch its history
+          const trendsData = await Promise.all(
+            accountsResponse.data.map(async (account) => {
+              try {
+                const historyResponse = await logicApi.get(`${LOGIC_API.profileHistory}${account.username}`);
+                
+                if (historyResponse.data && historyResponse.data.history) {
+                  // Format the history data
+                  const history = historyResponse.data.history;
+                  
+                  // Extract dates and follower counts into separate arrays
+                  const timestamps = history.map(point => point.timestamp);
+                  const follower_counts = history.map(point => point.follower_count);
+                  
+                  return {
+                    username: account.username,
+                    timestamps,
+                    follower_counts
+                  };
+                }
+                return null;
+              } catch (error) {
+                console.error(`Error fetching history for ${account.username}:`, error);
+                return null;
+              }
+            })
+          );
+          
+          // Filter out null values and prepare the response
+          const validTrends = trendsData.filter(trend => trend !== null);
+          
+          if (validTrends.length > 0) {
+            // Generate date labels from the timestamps of the first profile
+            // (assuming all profiles have similar timestamp patterns)
+            const sampleTimestamps = validTrends[0].timestamps;
+            const dates = sampleTimestamps.map(ts => 
+              new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            );
+            
+            console.log(`Successfully fetched trend data for ${validTrends.length} profiles from Logic Service`);
+            
+            return {
+              trends: validTrends,
+              dates: dates
+            };
+          }
+        }
+      } catch (logicError) {
+        console.error('Error fetching trends from Logic Service, falling back to API', logicError);
+      }
+      
+      // Fallback to standard API endpoint
       const response = await api.get(API_ENDPOINTS.trends, { params });
       
       // Log trend data stats for debugging

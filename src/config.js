@@ -11,6 +11,11 @@ export const SCRAPER_API_URL = process.env.REACT_APP_SCRAPER_URL ||
                              (window._env_ && window._env_.REACT_APP_SCRAPER_URL) || 
                              'https://scraper-service-907s.onrender.com';
 
+// Logic Service URL - handles all data analytics
+export const LOGIC_SERVICE_URL = process.env.REACT_APP_LOGIC_URL || 
+                               (window._env_ && window._env_.REACT_APP_LOGIC_URL) || 
+                               'https://logic-service.onrender.com';
+
 // API endpoints
 export const API_ENDPOINTS = {
   leaderboard: '/api/leaderboard',
@@ -20,6 +25,18 @@ export const API_ENDPOINTS = {
   scrape: '/api/scrape',
   testData: '/api/test-data',
   testTrends: '/api/test-trends'
+};
+
+// Logic Service API endpoints
+export const LOGIC_API = {
+  accounts: '/api/v1/accounts/',
+  profiles: '/api/v1/profiles/',
+  currentProfile: '/api/v1/profiles/current/',
+  profileHistory: '/api/v1/profiles/history/',
+  growth: '/api/v1/analytics/growth/',
+  changes: '/api/v1/analytics/changes/',
+  rollingAverage: '/api/v1/analytics/rolling-average/',
+  compare: '/api/v1/analytics/compare'
 };
 
 // Image paths
