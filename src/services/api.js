@@ -229,11 +229,25 @@ const MOCK_PROFILES = [
 // Helper function to get profile analytics data from Logic Service
 export const fetchProfileAnalytics = async (username) => {
   try {
-    // Make parallel requests to Logic Service for different analytics using direct URLs
+    // Try with both logic URL patterns
+    let baseUrl;
+    
+    try {
+      // First try the proxy URL
+      await axios.get(`${LOGIC_URL}/health`);
+      baseUrl = LOGIC_URL;
+      console.log(`Using proxy URL ${baseUrl} for analytics`);
+    } catch (proxyError) {
+      // If that fails, try the direct URL
+      console.log(`Logic service proxy not available, using direct URL`);
+      baseUrl = 'https://logic-service.onrender.com';
+    }
+    
+    // Make parallel requests to Logic Service for different analytics
     const [growthResponse, changesResponse, rollingAvgResponse] = await Promise.all([
-      axios.get(`${LOGIC_URL}/api/v1/analytics/growth/${username}`),
-      axios.get(`${LOGIC_URL}/api/v1/analytics/changes/${username}`),
-      axios.get(`${LOGIC_URL}/api/v1/analytics/rolling-average/${username}`)
+      axios.get(`${baseUrl}/api/v1/analytics/growth/${username}`),
+      axios.get(`${baseUrl}/api/v1/analytics/changes/${username}`),
+      axios.get(`${baseUrl}/api/v1/analytics/rolling-average/${username}`)
     ]);
     
     // Return combined analytics data
@@ -259,8 +273,20 @@ const enhanceProfilesWithAnalytics = async (profiles) => {
   const enhancedProfiles = await Promise.all(
     profiles.map(async (profile) => {
       try {
-        // Get current profile data from Logic Service using direct URL
-        const currentResponse = await axios.get(`${LOGIC_URL}/api/v1/profiles/current/${profile.username}`);
+        // Try with both logic URL patterns
+        let baseUrl;
+        
+        try {
+          // First try the proxy URL
+          await axios.get(`${LOGIC_URL}/health`);
+          baseUrl = LOGIC_URL;
+        } catch (proxyError) {
+          // If that fails, try the direct URL
+          baseUrl = 'https://logic-service.onrender.com';
+        }
+        
+        // Get current profile data from Logic Service
+        const currentResponse = await axios.get(`${baseUrl}/api/v1/profiles/current/${profile.username}`);
         const analytics = await fetchProfileAnalytics(profile.username);
         
         // Extract relevant metrics
@@ -297,10 +323,26 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
     try {
       // First try using the Logic Service to get profiles
       try {
-        // Testing direct URL instead of using axios instance with baseURL
-        const logicEndpoint = `${LOGIC_URL}/api/v1/profiles`;
-        console.log(`Attempting to fetch profiles from Logic Service at ${logicEndpoint}`);
-        const logicProfilesResponse = await axios.get(logicEndpoint);
+        let logicProfilesResponse;
+        
+        // Try different URLs for the Logic Service
+        try {
+          // 1. Try the normal URL first
+          const logicEndpoint = `${LOGIC_URL}/api/v1/profiles`;
+          console.log(`Attempting to fetch profiles from Logic Service at ${logicEndpoint}`);
+          
+          logicProfilesResponse = await axios.get(logicEndpoint);
+          console.log(`Successfully connected to Logic Service at ${logicEndpoint}`);
+        } catch (proxyError) {
+          console.log(`Failed to connect to Logic Service via proxy, trying direct URL`, proxyError);
+          
+          // 2. Try direct URL as fallback
+          const directEndpoint = 'https://logic-service.onrender.com/api/v1/profiles';
+          console.log(`Attempting to fetch profiles from Logic Service direct URL at ${directEndpoint}`);
+          logicProfilesResponse = await axios.get(directEndpoint);
+          console.log(`Successfully connected to Logic Service at direct URL`);
+        }
+        
         console.log(`SUCCESS! Received ${logicProfilesResponse.data?.length} profiles from Logic Service`);
         
         if (Array.isArray(logicProfilesResponse.data) && logicProfilesResponse.data.length > 0) {
