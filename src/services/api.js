@@ -364,8 +364,16 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
             rank: index + 1
           }));
           
-          // Enhance with analytics data
-          const enhancedProfiles = await enhanceProfilesWithAnalytics(formattedProfiles);
+          // Skip the analytics enhancement for now since it's causing errors
+          // Just use the basic profile data
+          console.log('Skipping analytics enhancement due to connection issues');
+          const enhancedProfiles = formattedProfiles.map(profile => ({
+            ...profile,
+            follower_change: 0,
+            twelve_hour_change: 0,
+            twenty_four_hour_change: 0,
+            seven_day_average: 0
+          }));
           
           // Sort by follower count (descending) and update ranks
           const sortedProfiles = enhancedProfiles
