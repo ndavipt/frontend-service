@@ -6,7 +6,8 @@ import {
   LOGIC_SERVICE_URL as CONFIG_LOGIC_URL,
   DIRECT_LOGIC_SERVICE_URL,
   LOGIC_API,
-  USE_FETCH_FOR_DIRECT
+  USE_FETCH_FOR_DIRECT,
+  FALLBACK_URLS
 } from '../config';
 
 // Determine if we're in development mode
@@ -121,6 +122,48 @@ const formatProfileData = (serviceProfiles) => {
   
   console.log(`Successfully formatted ${formattedData.leaderboard.length} profiles from Logic Service`);
   return formattedData;
+};
+
+// Helper function to try multiple URLs until one works
+const tryMultipleUrls = async (path, options = {}) => {
+  const errors = [];
+  
+  // First try the configured URL
+  const urlsToTry = [
+    DIRECT_LOGIC_SERVICE_URL,
+    ...FALLBACK_URLS.filter(url => url !== DIRECT_LOGIC_SERVICE_URL)
+  ];
+  
+  for (const baseUrl of urlsToTry) {
+    try {
+      const fullUrl = `${baseUrl}${path}`;
+      console.log(`Trying URL: ${fullUrl}`);
+      
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' },
+        mode: 'cors',
+        credentials: 'omit',
+        signal: AbortSignal.timeout(options.timeout || 10000),
+        ...options
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log(`Successfully connected to ${baseUrl}`);
+      return { data, url: baseUrl };
+    } catch (error) {
+      console.log(`Failed to connect to ${baseUrl}: ${error.message}`);
+      errors.push({ url: baseUrl, error: error.message });
+    }
+  }
+  
+  // If we get here, all URLs failed
+  throw new Error(`All URLs failed: ${JSON.stringify(errors)}`);
 };
 
 // API functions for various endpoints
@@ -261,18 +304,24 @@ export const fetchProfileAnalytics = async (username) => {
           method: 'GET',
           cache: 'no-store',
           headers: { 'Accept': 'application/json' },
+          mode: 'cors',
+          credentials: 'omit',
           signal: AbortSignal.timeout(5000) // 5 second timeout
         }),
         fetch(`${baseUrl}/api/v1/analytics/changes/${username}`, { 
           method: 'GET',
           cache: 'no-store',
           headers: { 'Accept': 'application/json' },
+          mode: 'cors',
+          credentials: 'omit',
           signal: AbortSignal.timeout(5000)
         }),
         fetch(`${baseUrl}/api/v1/analytics/rolling-average/${username}`, { 
           method: 'GET',
           cache: 'no-store',
           headers: { 'Accept': 'application/json' },
+          mode: 'cors',
+          credentials: 'omit',
           signal: AbortSignal.timeout(5000)
         })
       ]);
@@ -379,32 +428,25 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
         
         // Try different URLs for the Logic Service
         try {
-          // Skip proxies and connect directly to Logic Service
-          console.log('Connecting directly to Logic Service');
+          // Try multiple possible Logic Service URLs
+          console.log('Trying multiple Logic Service URLs');
           
-          const directEndpoint = `${DIRECT_LOGIC_SERVICE_URL}/api/v1/profiles`;
-          console.log(`Attempting to fetch profiles from Logic Service at ${directEndpoint}`);
-          
-          // Use native fetch API to avoid SSL handshake issues that can happen with axios
-          console.log(`Using fetch API for direct connection`);
-          const fetchResponse = await fetch(directEndpoint, { 
-            method: 'GET',
-            headers: { 'Accept': 'application/json' },
-            // Use cache: 'no-store' to avoid cached responses
-            cache: 'no-store',
-            signal: AbortSignal.timeout(10000) // 10 second timeout
-          });
-          
-          if (!fetchResponse.ok) {
-            throw new Error(`Fetch failed with status ${fetchResponse.status}`);
+          try {
+            // Use our helper to try multiple URLs until one works
+            const result = await tryMultipleUrls('/api/v1/profiles');
+            
+            // Convert the response to the same format axios would return
+            logicProfilesResponse = { data: result.data };
+            console.log(`Successfully connected to Logic Service at ${result.url}`);
+          } catch (fetchError) {
+            console.error(`Error in fetch: ${fetchError.message}`);
+            // No URLs worked, throw to the next handler
+            throw fetchError;
           }
           
-          // Convert the fetch response to the same format axios would return
-          const responseData = await fetchResponse.json();
-          logicProfilesResponse = { data: responseData };
-          
-          console.log(`Successfully connected to Logic Service at ${directEndpoint}`);
-          console.log(`Received ${responseData.length} profiles from Logic Service`);
+          if (logicProfilesResponse && logicProfilesResponse.data) {
+            console.log(`Received ${logicProfilesResponse.data.length} profiles from Logic Service`);
+          }
         } catch (fetchError) {
           console.log(`Failed to connect to Logic Service, will try backup methods`, fetchError);
           throw fetchError;  // Let it fall through to the next handler
@@ -490,34 +532,19 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
       
       // Make one final direct attempt to the Logic Service
       try {
-        // Skip all proxies and go directly to the logic service
-        const directLogicUrl = 'https://logic-service.onrender.com';
-        console.log(`Making direct attempt to Logic Service at ${directLogicUrl}/api/v1/profiles - bypassing all proxies`);
-                             
-        // Skip health check to simplify - go straight to data
+        console.log('Making final attempt to connect to Logic Service - trying all fallback URLs');
         
         let finalResponse;
         
-        // Always use the native fetch API with Logic Service
-        console.log(`Using fetch API to connect directly to Logic Service`);
         try {
-          const fetchResponse = await fetch(`${directLogicUrl}/api/v1/profiles`, {
-            method: 'GET',
-            cache: 'no-store',
-            headers: { 'Accept': 'application/json' },
-            signal: AbortSignal.timeout(10000) // 10 second timeout
-          });
+          // Make one final attempt using our helper function
+          const result = await tryMultipleUrls('/api/v1/profiles', { timeout: 15000 });
           
-          if (!fetchResponse.ok) {
-            throw new Error(`Fetch failed with status ${fetchResponse.status}`);
-          }
-          
-          // Convert the fetch response to the same format axios would return
-          const responseData = await fetchResponse.json();
-          finalResponse = { data: responseData };
-          console.log(`Successfully fetched ${responseData.length} profiles from Logic Service`);
+          // Convert to expected format
+          finalResponse = { data: result.data };
+          console.log(`Successfully fetched ${result.data.length} profiles from Logic Service at ${result.url}`);
         } catch (fetchError) {
-          console.error(`Error fetching from Logic Service:`, fetchError);
+          console.error(`All Logic Service URLs failed:`, fetchError);
           // Fall back to mock data
           throw fetchError;
         }
@@ -638,21 +665,39 @@ export const fetchTrends = async (forceRefresh = false) => {
     try {
       // First try using the Logic Service to get history for all profiles
       try {
-        // Get all accounts from Logic Service using direct URL
-        const accountsResponse = await axios.get(`${LOGIC_URL}/api/v1/accounts`);
+        // Get all accounts from Logic Service using our helper
+        console.log('Fetching accounts from Logic Service');
+        const accountsResult = await tryMultipleUrls('/api/v1/accounts');
+        const accounts = accountsResult.data;
+        const baseUrl = accountsResult.url;
         
-        if (Array.isArray(accountsResponse.data) && accountsResponse.data.length > 0) {
-          console.log(`Fetching history for ${accountsResponse.data.length} accounts from Logic Service`);
+        if (Array.isArray(accounts) && accounts.length > 0) {
+          console.log(`Fetching history for ${accounts.length} accounts from Logic Service at ${baseUrl}`);
           
           // For each account, fetch its history
           const trendsData = await Promise.all(
-            accountsResponse.data.map(async (account) => {
+            accounts.map(async (account) => {
               try {
-                const historyResponse = await axios.get(`${LOGIC_URL}/api/v1/profiles/history/${account.username}`);
+                // Try direct fetch with CORS settings
+                const historyUrl = `${baseUrl}/api/v1/profiles/history/${account.username}`;
+                const response = await fetch(historyUrl, {
+                  method: 'GET',
+                  cache: 'no-store',
+                  headers: { 'Accept': 'application/json' },
+                  mode: 'cors',
+                  credentials: 'omit',
+                  signal: AbortSignal.timeout(5000)
+                });
                 
-                if (historyResponse.data && historyResponse.data.history) {
+                if (!response.ok) {
+                  throw new Error(`Failed to fetch history: ${response.status}`);
+                }
+                
+                const historyData = await response.json();
+                
+                if (historyData && historyData.history) {
                   // Format the history data
-                  const history = historyResponse.data.history;
+                  const history = historyData.history;
                   
                   // Extract dates and follower counts into separate arrays
                   const timestamps = history.map(point => point.timestamp);

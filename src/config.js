@@ -19,6 +19,13 @@ export const LOGIC_SERVICE_URL = process.env.REACT_APP_LOGIC_URL ||
 // Direct Logic Service URL as fallback if proxy fails
 export const DIRECT_LOGIC_SERVICE_URL = 'https://logic-service.onrender.com';
 
+// Fallback URLs to try if primary fails
+export const FALLBACK_URLS = [
+  'https://logic-service.onrender.com',
+  'https://logic-service.azurewebsites.net',
+  'https://logic-service-2s7j.onrender.com'
+];
+
 // Flag to use direct browser fetch instead of axios for problematic SSL connections
 export const USE_FETCH_FOR_DIRECT = true;
 
