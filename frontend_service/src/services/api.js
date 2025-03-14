@@ -779,15 +779,34 @@ export const fetchTrends = async (forceRefresh = false) => {
         // Get all accounts from Logic Service using our helper
         console.log('Fetching accounts from Logic Service');
         
-        // Try multiple endpoint formats
+        // Try multiple endpoint formats and direct local proxy
         let accountsResult;
         try {
-          // First try with /api/v1/ prefix
-          accountsResult = await tryMultipleUrls('/api/v1/accounts');
-        } catch (apiV1Error) {
-          console.log('Failed to fetch accounts with /api/v1/ prefix, trying direct endpoint');
-          // Next try with direct endpoint
-          accountsResult = await tryMultipleUrls('/accounts');
+          // Let's try the local proxy first as it has the most reliable CORS handling
+          console.log('Using local proxy for accounts fetch');
+          const proxyResponse = await fetch('/logic/accounts', {
+            method: 'GET',
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' }
+          });
+          
+          if (!proxyResponse.ok) {
+            throw new Error(`Proxy responded with ${proxyResponse.status}`);
+          }
+          
+          const data = await proxyResponse.json();
+          accountsResult = { data, url: '/logic' };
+          console.log(`Successfully fetched ${data.length} accounts through proxy`);
+        } catch (proxyError) {
+          console.log(`Proxy fetch failed: ${proxyError.message}, trying direct endpoints`);
+          try {
+            // Try with /api/v1/ prefix
+            accountsResult = await tryMultipleUrls('/api/v1/accounts');
+          } catch (apiV1Error) {
+            console.log('Failed to fetch accounts with /api/v1/ prefix, trying direct endpoint');
+            // Next try with direct endpoint
+            accountsResult = await tryMultipleUrls('/accounts');
+          }
         }
         
         const accounts = accountsResult.data;
@@ -805,41 +824,51 @@ export const fetchTrends = async (forceRefresh = false) => {
                 if (!baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1')) {
                   secureBaseUrl = baseUrl.replace('http:', 'https:');
                 }
-                // First try with /api/v1/ prefix
-                let historyUrl = `${secureBaseUrl}/api/v1/profiles/history/${account.username}`;
+                // Try the local proxy first which should avoid CORS issues
                 let response;
                 
                 try {
-                  response = await fetch(historyUrl, {
-                    method: 'GET',
-                    cache: 'no-store',
-                    headers: { 
-                      'Accept': 'application/json',
-                      'Origin': window.location.origin,
-                      'Access-Control-Request-Method': 'GET',
-                      'Access-Control-Request-Headers': 'content-type,accept'
-                    },
-                    mode: 'cors',
-                    credentials: 'omit',
-                    signal: AbortSignal.timeout(5000)
-                  });
-                } catch (corsError) {
-                  console.log(`CORS error with ${historyUrl}, trying alternative endpoint`);
+                  // Use the local proxy which handles CORS properly
+                  const proxyUrl = `/logic/profiles/history/${account.username}`;
+                  console.log(`Trying proxy URL for history: ${proxyUrl}`);
                   
-                  // Try with direct endpoint (no /api/v1/ prefix)
-                  historyUrl = `${secureBaseUrl}/profiles/history/${account.username}`;
-                  response = await fetch(historyUrl, {
+                  response = await fetch(proxyUrl, {
                     method: 'GET',
                     cache: 'no-store',
-                    headers: { 
-                      'Accept': 'application/json',
-                      'Origin': window.location.origin,
-                      'Access-Control-Request-Method': 'GET'
-                    },
-                    mode: 'cors',
-                    credentials: 'omit',
+                    headers: { 'Accept': 'application/json' },
                     signal: AbortSignal.timeout(5000)
                   });
+                  
+                  console.log(`Proxy history response status: ${response.status}`);
+                } catch (proxyError) {
+                  console.log(`Proxy error with history: ${proxyError.message}, trying direct endpoints`);
+                  
+                  // If proxy fails, try direct endpoints
+                  try {
+                    // First try with /api/v1/ prefix
+                    const historyUrl = `${secureBaseUrl}/api/v1/profiles/history/${account.username}`;
+                    response = await fetch(historyUrl, {
+                      method: 'GET',
+                      cache: 'no-store',
+                      headers: { 'Accept': 'application/json' },
+                      mode: 'cors',
+                      credentials: 'omit',
+                      signal: AbortSignal.timeout(5000)
+                    });
+                  } catch (apiV1Error) {
+                    console.log(`API v1 error with history: ${apiV1Error.message}, trying without prefix`);
+                    
+                    // Try with direct endpoint (no /api/v1/ prefix)
+                    const directUrl = `${secureBaseUrl}/profiles/history/${account.username}`;
+                    response = await fetch(directUrl, {
+                      method: 'GET',
+                      cache: 'no-store',
+                      headers: { 'Accept': 'application/json' },
+                      mode: 'cors',
+                      credentials: 'omit',
+                      signal: AbortSignal.timeout(5000)
+                    });
+                  }
                 }
                 
                 if (!response.ok) {
