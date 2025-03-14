@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Logic Service Data Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 {
+      color: #E1306C;
+      border-bottom: 2px solid #E1306C;
+      padding-bottom: 10px;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .card-header img {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      margin-right: 15px;
+      border: 2px solid #E1306C;
+      object-fit: cover;
+    }
+    .card-header h3 {
+      margin: 0;
+    }
+    .card-body {
+      color: #555;
+    }
+    .stats {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-top: 1px solid #eee;
+      margin-top: 10px;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat span {
+      font-weight: bold;
+      color: #E1306C;
+    }
+    .loading {
+      color: #777;
+      font-style: italic;
+    }
+    .error {
+      color: #d32f2f;
+      background-color: #ffdada;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .buttons {
+      margin: 20px 0;
+    }
+    button {
+      background-color: #E1306C;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    button:hover {
+      background-color: #c62c60;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Logic Service Data Test</h1>
+  
+  <div class="buttons">
+    <button onclick="fetchProfiles()">Fetch Profiles</button>
+    <button onclick="fetchAccounts()">Fetch Accounts</button>
+    <button onclick="fetchAnalytics()">Fetch Analytics for First Profile</button>
+  </div>
+
+  <div id="loading" class="loading" style="display: none;">Loading data from Logic Service...</div>
+  <div id="error" class="error" style="display: none;"></div>
+  
+  <h2>Response Data:</h2>
+  <pre id="jsonData">No data fetched yet. Click one of the buttons above.</pre>
+  
+  <h2>Profiles:</h2>
+  <div id="profiles"></div>
+  
+  <script>
+    // The base URL for the Logic Service
+    const logicServiceUrls = [
+      'https://logic-service-2s7j.onrender.com',
+      'https://logic-service.onrender.com'
+    ];
+    
+    let currentProfileData = null;
+    
+    // Try multiple URLs until one works
+    async function tryMultipleUrls(path) {
+      let lastError = null;
+      
+      for (const baseUrl of logicServiceUrls) {
+        try {
+          const response = await fetch(`${baseUrl}${path}`, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+          }
+          
+          const data = await response.json();
+          console.log(`Successfully fetched from ${baseUrl}${path}`);
+          return { data, url: baseUrl };
+        } catch (error) {
+          console.error(`Error fetching from ${baseUrl}${path}:`, error);
+          lastError = error;
+        }
+      }
+      
+      throw lastError || new Error('Failed to fetch from all URLs');
+    }
+    
+    // Function to fetch profiles from the Logic Service
+    async function fetchProfiles() {
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('error').style.display = 'none';
+      
+      try {
+        const result = await tryMultipleUrls('/api/v1/profiles');
+        const profiles = result.data;
+        const baseUrl = result.url;
+        
+        // Save profiles for later use
+        currentProfileData = profiles;
+        
+        // Display the JSON data
+        document.getElementById('jsonData').textContent = JSON.stringify(profiles, null, 2);
+        
+        // Clear previous profiles
+        document.getElementById('profiles').innerHTML = '';
+        
+        // Render profiles
+        if (Array.isArray(profiles)) {
+          profiles.slice(0, 10).forEach(profile => {
+            renderProfileCard(profile);
+          });
+        } else {
+          document.getElementById('error').textContent = 'Unexpected data format: ' + JSON.stringify(profiles);
+          document.getElementById('error').style.display = 'block';
+        }
+      } catch (error) {
+        console.error('Error fetching profiles:', error);
+        document.getElementById('error').textContent = 'Error fetching profiles: ' + error.message;
+        document.getElementById('error').style.display = 'block';
+      } finally {
+        document.getElementById('loading').style.display = 'none';
+      }
+    }
+    
+    // Function to fetch accounts from the Logic Service
+    async function fetchAccounts() {
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('error').style.display = 'none';
+      
+      try {
+        const result = await tryMultipleUrls('/api/v1/accounts');
+        const accounts = result.data;
+        
+        // Display the JSON data
+        document.getElementById('jsonData').textContent = JSON.stringify(accounts, null, 2);
+        
+        // Clear profiles area
+        document.getElementById('profiles').innerHTML = '';
+      } catch (error) {
+        console.error('Error fetching accounts:', error);
+        document.getElementById('error').textContent = 'Error fetching accounts: ' + error.message;
+        document.getElementById('error').style.display = 'block';
+      } finally {
+        document.getElementById('loading').style.display = 'none';
+      }
+    }
+    
+    // Function to fetch analytics for the first profile
+    async function fetchAnalytics() {
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('error').style.display = 'none';
+      
+      try {
+        if (!currentProfileData || !Array.isArray(currentProfileData) || currentProfileData.length === 0) {
+          throw new Error('No profile data available. Fetch profiles first.');
+        }
+        
+        const username = currentProfileData[0].username;
+        const result = await tryMultipleUrls(`/api/v1/analytics/growth/${username}`);
+        const analytics = result.data;
+        
+        // Display the JSON data
+        document.getElementById('jsonData').textContent = JSON.stringify(analytics, null, 2);
+        
+        // Clear profiles area
+        document.getElementById('profiles').innerHTML = `
+          <div class="card">
+            <div class="card-header">
+              <h3>Analytics for @${username}</h3>
+            </div>
+            <div class="card-body">
+              <p>Growth analytics fetched successfully!</p>
+            </div>
+          </div>
+        `;
+      } catch (error) {
+        console.error('Error fetching analytics:', error);
+        document.getElementById('error').textContent = 'Error fetching analytics: ' + error.message;
+        document.getElementById('error').style.display = 'block';
+      } finally {
+        document.getElementById('loading').style.display = 'none';
+      }
+    }
+    
+    // Helper function to render a profile card
+    function renderProfileCard(profile) {
+      const profilesContainer = document.getElementById('profiles');
+      
+      const profileImg = profile.profile_pic_url || 
+                       `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.username)}&background=E1306C&color=fff&size=150&bold=true`;
+      
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="card-header">
+          <img src="${profileImg}" alt="${profile.username}" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(profile.username)}&background=E1306C&color=fff';">
+          <h3>@${profile.username}</h3>
+        </div>
+        <div class="card-body">
+          <p>${profile.biography || 'No biography available'}</p>
+          <div class="stats">
+            <div class="stat">
+              <span>${formatNumber(profile.follower_count)}</span> followers
+            </div>
+          </div>
+        </div>
+      `;
+      
+      profilesContainer.appendChild(card);
+    }
+    
+    // Helper function to format numbers nicely
+    function formatNumber(num) {
+      if (num >= 1000000) {
+        return (num / 1000000).toFixed(1) + 'M';
+      } else if (num >= 1000) {
+        return (num / 1000).toFixed(1) + 'K';
+      }
+      return num;
+    }
+  </script>
+</body>
+</html>
