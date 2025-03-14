@@ -39,7 +39,7 @@
   <p>Click the buttons below to test connections to different endpoints:</p>
   
   <div>
-    <button id="test-direct">Test Direct Scraper Connection</button>
+    <button id="test-direct">Test Direct Logic Service Connection</button>
     <div id="direct-result"></div>
   </div>
   
@@ -61,14 +61,14 @@
     // Test functions
     async function testDirectConnection() {
       const resultDiv = document.getElementById('direct-result');
-      resultDiv.innerHTML = '<p class="loading">Testing direct connection to scraper service...</p>';
+      resultDiv.innerHTML = '<p class="loading">Testing direct connection to Logic Service...</p>';
       
       try {
-        const scraperUrl = 'https://scraper-service-907s.onrender.com/profiles';
-        console.log(`Connecting to ${scraperUrl}`);
+        const logicUrl = 'https://logic-service.onrender.com/api/v1/profiles';
+        console.log(`Connecting to ${logicUrl}`);
         
         const startTime = performance.now();
-        const response = await fetch(scraperUrl, {
+        const response = await fetch(logicUrl, {
           method: 'GET',
           headers: {
             'Accept': 'application/json'
@@ -84,7 +84,7 @@
         const timeMs = (endTime - startTime).toFixed(0);
         
         resultDiv.innerHTML = `
-          <p class="success">✅ Successfully connected to scraper service in ${timeMs}ms!</p>
+          <p class="success">✅ Successfully connected to Logic Service in ${timeMs}ms!</p>
           <p>Received ${Array.isArray(data) ? data.length : 'unknown'} profiles</p>
           <p>Sample data:</p>
           <pre>${JSON.stringify(Array.isArray(data) ? data.slice(0, 2) : data, null, 2)}</pre>
@@ -102,11 +102,11 @@
       resultDiv.innerHTML = '<p class="loading">Testing CORS headers...</p>';
       
       try {
-        const scraperUrl = 'https://scraper-service-907s.onrender.com/profiles';
-        console.log(`Checking CORS for ${scraperUrl}`);
+        const logicUrl = 'https://logic-service.onrender.com/api/v1/profiles';
+        console.log(`Checking CORS for ${logicUrl}`);
         
         // First check with preflight OPTIONS request
-        const preflightResponse = await fetch(scraperUrl, {
+        const preflightResponse = await fetch(logicUrl, {
           method: 'OPTIONS',
           headers: {
             'Access-Control-Request-Method': 'GET',
@@ -144,8 +144,8 @@
         '/api/test',
         'https://insta-leaderboard-api.onrender.com/api/leaderboard',
         'https://insta-leaderboard-api.onrender.com/api/test',
-        'https://scraper-service-907s.onrender.com/profiles',
-        'https://scraper-service-907s.onrender.com/accounts'
+        'https://logic-service.onrender.com/api/v1/profiles',
+        'https://logic-service.onrender.com/api/v1/accounts'
       ];
       
       const results = {};

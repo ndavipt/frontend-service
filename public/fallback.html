@@ -111,7 +111,7 @@
 </head>
 <body>
   <h1>Instagram AI Leaderboard</h1>
-  <p class="status">This is a fallback page that loads data directly from the scraper service.</p>
+  <p class="status">This is a fallback page that loads data directly from the Logic Service.</p>
   
   <div id="error-container"></div>
   <div id="loading" class="loading">Click the button below to load data</div>
@@ -144,8 +144,8 @@
       loadButton.disabled = true;
       
       try {
-        // Try direct connection to scraper service
-        const response = await fetch('https://scraper-service-907s.onrender.com/profiles', {
+        // Try direct connection to Logic Service
+        const response = await fetch('https://logic-service.onrender.com/api/v1/profiles', {
           method: 'GET',
           mode: 'cors',
           cache: 'no-cache',
@@ -197,7 +197,7 @@
           loading.textContent = 'Trying alternative connection...';
           
           const corsProxyUrl = 'https://cors-anywhere.herokuapp.com/';
-          const targetUrl = 'https://scraper-service-907s.onrender.com/profiles';
+          const targetUrl = 'https://logic-service.onrender.com/api/v1/profiles';
           
           const proxyResponse = await fetch(corsProxyUrl + targetUrl, {
             method: 'GET',
