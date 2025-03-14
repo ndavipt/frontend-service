@@ -187,7 +187,7 @@ const Leaderboard = () => {
         { name: 'React proxy', url: '/api/leaderboard' },
         { name: 'API direct', url: `${apiUrl}/api/leaderboard` },
         { name: 'Minimal test', url: '/api/test' },
-        { name: 'Scraper service', url: 'https://scraper-service-907s.onrender.com/profiles' }
+        { name: 'Logic Service', url: 'https://logic-service.onrender.com/api/v1/profiles' }
       ];
       
       let successful = false;

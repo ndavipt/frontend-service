@@ -103,23 +103,23 @@ logicApi.interceptors.response.use(
   }
 );
 
-// Helper function to format scraper data to our expected format
-const formatScraperData = (scraperProfiles) => {
+// Helper function to format Logic Service data to our expected format
+const formatProfileData = (serviceProfiles) => {
   // Format the data to match our expected structure
-  // The scraper service returns an array of profiles directly
+  // The Logic Service returns an array of profiles directly
   const formattedData = {
-    leaderboard: scraperProfiles.map((profile, index) => ({
+    leaderboard: serviceProfiles.map((profile, index) => ({
       username: profile.username,
       bio: profile.biography || '',
       follower_count: profile.follower_count,
       profile_img_url: profile.profile_pic_url,
-      follower_change: 0, // No change data available from scraper directly
+      follower_change: 0, // Will be enhanced with analytics data separately
       rank: index + 1
     })),
     updated_at: new Date().toISOString()
   };
   
-  console.log(`Successfully formatted ${formattedData.leaderboard.length} profiles from scraper service`);
+  console.log(`Successfully formatted ${formattedData.leaderboard.length} profiles from Logic Service`);
   return formattedData;
 };
 
@@ -379,11 +379,11 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
         
         // Try different URLs for the Logic Service
         try {
-          // Skip all complicated proxy attempts and connect directly to scraper service
-          console.log('Skipping proxies and connecting directly to Scraper Service');
+          // Skip proxies and connect directly to Logic Service
+          console.log('Connecting directly to Logic Service');
           
-          const directEndpoint = 'https://scraper-service-907s.onrender.com/profiles';
-          console.log(`Attempting to fetch profiles directly from Scraper Service at ${directEndpoint}`);
+          const directEndpoint = `${DIRECT_LOGIC_SERVICE_URL}/api/v1/profiles`;
+          console.log(`Attempting to fetch profiles from Logic Service at ${directEndpoint}`);
           
           // Use native fetch API to avoid SSL handshake issues that can happen with axios
           console.log(`Using fetch API for direct connection`);
@@ -403,14 +403,14 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
           const responseData = await fetchResponse.json();
           logicProfilesResponse = { data: responseData };
           
-          console.log(`Successfully connected to Scraper Service at ${directEndpoint}`);
-          console.log(`Received ${responseData.length} profiles from Scraper Service`);
+          console.log(`Successfully connected to Logic Service at ${directEndpoint}`);
+          console.log(`Received ${responseData.length} profiles from Logic Service`);
         } catch (fetchError) {
-          console.log(`Failed to connect to Scraper Service, will try backup methods`, fetchError);
+          console.log(`Failed to connect to Logic Service, will try backup methods`, fetchError);
           throw fetchError;  // Let it fall through to the next handler
         }
         
-        console.log(`SUCCESS! Received ${logicProfilesResponse.data?.length} profiles from Scraper Service`);
+        console.log(`SUCCESS! Received ${logicProfilesResponse.data?.length} profiles from Logic Service`);
         
         if (Array.isArray(logicProfilesResponse.data) && logicProfilesResponse.data.length > 0) {
           // Format and enhance profiles with analytics data
@@ -490,18 +490,18 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
       
       // Make one final direct attempt to the Logic Service
       try {
-        // Skip all proxies and go directly to the scraper service
-        const directLogicUrl = 'https://scraper-service-907s.onrender.com';
-        console.log(`Making direct attempt to Scraper Service at ${directLogicUrl}/profiles - bypassing all proxies`);
+        // Skip all proxies and go directly to the logic service
+        const directLogicUrl = 'https://logic-service.onrender.com';
+        console.log(`Making direct attempt to Logic Service at ${directLogicUrl}/api/v1/profiles - bypassing all proxies`);
                              
         // Skip health check to simplify - go straight to data
         
         let finalResponse;
         
-        // Always use the native fetch API with scraper service
-        console.log(`Using fetch API to connect directly to Scraper Service`);
+        // Always use the native fetch API with Logic Service
+        console.log(`Using fetch API to connect directly to Logic Service`);
         try {
-          const fetchResponse = await fetch(`${directLogicUrl}/profiles`, {
+          const fetchResponse = await fetch(`${directLogicUrl}/api/v1/profiles`, {
             method: 'GET',
             cache: 'no-store',
             headers: { 'Accept': 'application/json' },
@@ -515,9 +515,9 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
           // Convert the fetch response to the same format axios would return
           const responseData = await fetchResponse.json();
           finalResponse = { data: responseData };
-          console.log(`Successfully fetched ${responseData.length} profiles from scraper service`);
+          console.log(`Successfully fetched ${responseData.length} profiles from Logic Service`);
         } catch (fetchError) {
-          console.error(`Error fetching from scraper service:`, fetchError);
+          console.error(`Error fetching from Logic Service:`, fetchError);
           // Fall back to mock data
           throw fetchError;
         }
