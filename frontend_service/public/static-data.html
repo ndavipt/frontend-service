@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Instagram AI Leaderboard - Dynamic Data</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f8f9fa;
+    }
+    
+    h1 {
+      color: #E1306C;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .profile-card {
+      background-color: #fff;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      display: flex;
+      align-items: center;
+      border-left: 5px solid #E1306C;
+    }
+    
+    .profile-image {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      margin-right: 20px;
+      object-fit: cover;
+    }
+    
+    .profile-info {
+      flex: 1;
+    }
+    
+    .username {
+      font-weight: bold;
+      color: #405DE6;
+      margin: 0 0 5px 0;
+      font-size: 1.2em;
+    }
+    
+    .bio {
+      color: #666;
+      margin: 0 0 10px 0;
+    }
+    
+    .follower-count {
+      font-weight: bold;
+      color: #E1306C;
+      margin: 0;
+    }
+    
+    .status {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #666;
+      font-style: italic;
+    }
+    
+    .rank {
+      margin-right: 15px;
+      font-size: 24px;
+      font-weight: bold;
+      color: #E1306C;
+      min-width: 30px;
+      text-align: center;
+    }
+    
+    .warning {
+      background-color: #fff3cd;
+      border-left: 5px solid #ffc107;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    
+    .error {
+      background-color: #f8d7da;
+      border-left: 5px solid #dc3545;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    
+    .success {
+      background-color: #d4edda;
+      border-left: 5px solid #28a745;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    
+    a {
+      color: #E1306C;
+      text-decoration: none;
+    }
+    
+    a:hover {
+      text-decoration: underline;
+    }
+    
+    .button-container {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    button {
+      background-color: #E1306C;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 0 5px 10px 5px;
+    }
+    
+    button:hover {
+      background-color: #d62e6a;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <h1>Instagram AI Leaderboard</h1>
+  <p id="status" class="status">Load dynamic data from Logic Service</p>
+  
+  <div class="button-container">
+    <button id="loadProxyBtn">Load via Proxy</button>
+    <button id="loadDirectBtn">Load Directly</button>
+    <button id="loadLocalBtn">Load from Backend</button>
+    <button id="loadStaticBtn">Show Static Data</button>
+  </div>
+  
+  <div id="message-container"></div>
+  
+  <div id="profiles-container">
+    <div class="loading">Click a button above to load data...</div>
+  </div>
+  
+  <script>
+    // Format numbers with commas
+    function formatNumber(num) {
+      return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+    
+    // Get avatar URL for fallback
+    function getAvatarUrl(username = 'AI') {
+      return `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=E1306C&color=fff&size=150&bold=true`;
+    }
+    
+    // Show loading message
+    function showLoading() {
+      document.getElementById('profiles-container').innerHTML = '<div class="loading">Loading profiles...</div>';
+    }
+    
+    // Show error message
+    function showError(message) {
+      document.getElementById('message-container').innerHTML = `
+        <div class="error">
+          <h3>Error</h3>
+          <p>${message}</p>
+        </div>
+      `;
+    }
+    
+    // Show success message
+    function showSuccess(message) {
+      document.getElementById('message-container').innerHTML = `
+        <div class="success">
+          <h3>Success</h3>
+          <p>${message}</p>
+        </div>
+      `;
+    }
+    
+    // Clear messages
+    function clearMessages() {
+      document.getElementById('message-container').innerHTML = '';
+    }
+    
+    // Update status
+    function updateStatus(message) {
+      document.getElementById('status').textContent = message;
+    }
+    
+    // Load data via proxy
+    async function loadViaProxy() {
+      clearMessages();
+      showLoading();
+      updateStatus('Loading data via proxy...');
+      
+      try {
+        const proxyUrl = '/logic/profiles';
+        console.log(`Fetching profiles via proxy: ${proxyUrl}`);
+        
+        const startTime = performance.now();
+        const response = await fetch(proxyUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          },
+          signal: AbortSignal.timeout(15000)
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        const endTime = performance.now();
+        const timeMs = (endTime - startTime).toFixed(0);
+        
+        console.log(`Received ${data.length} profiles via proxy in ${timeMs}ms`);
+        showSuccess(`Successfully loaded ${data.length} profiles via proxy in ${timeMs}ms`);
+        updateStatus(`Showing ${data.length} profiles from Logic Service (via proxy)`);
+        
+        renderProfiles(data);
+      } catch (error) {
+        console.error('Error loading via proxy:', error);
+        showError(`Failed to load via proxy: ${error.message}`);
+        updateStatus('Error loading data');
+      }
+    }
+    
+    // Load data directly
+    async function loadDirectly() {
+      clearMessages();
+      showLoading();
+      updateStatus('Loading data directly from Logic Service...');
+      
+      try {
+        const directUrl = 'https://logic-service-2s7j.onrender.com/api/v1/profiles';
+        console.log(`Fetching profiles directly: ${directUrl}`);
+        
+        const startTime = performance.now();
+        const response = await fetch(directUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          },
+          mode: 'cors',
+          credentials: 'omit',
+          signal: AbortSignal.timeout(15000)
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        const endTime = performance.now();
+        const timeMs = (endTime - startTime).toFixed(0);
+        
+        console.log(`Received ${data.length} profiles directly in ${timeMs}ms`);
+        showSuccess(`Successfully loaded ${data.length} profiles directly in ${timeMs}ms`);
+        updateStatus(`Showing ${data.length} profiles from Logic Service (direct connection)`);
+        
+        renderProfiles(data);
+      } catch (error) {
+        console.error('Error loading directly:', error);
+        showError(`Failed to load directly: ${error.message}`);
+        updateStatus('Error loading data');
+      }
+    }
+    
+    // Load from local backend
+    async function loadFromBackend() {
+      clearMessages();
+      showLoading();
+      updateStatus('Loading data from local backend...');
+      
+      try {
+        const apiUrl = '/api/leaderboard';
+        console.log(`Fetching profiles from backend: ${apiUrl}`);
+        
+        const startTime = performance.now();
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          },
+          signal: AbortSignal.timeout(15000)
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        const endTime = performance.now();
+        const timeMs = (endTime - startTime).toFixed(0);
+        
+        console.log(`Received backend data in ${timeMs}ms`);
+        
+        if (data.leaderboard && Array.isArray(data.leaderboard)) {
+          showSuccess(`Successfully loaded ${data.leaderboard.length} profiles from backend in ${timeMs}ms`);
+          updateStatus(`Showing ${data.leaderboard.length} profiles from backend API`);
+          renderBackendProfiles(data.leaderboard);
+        } else {
+          throw new Error('Invalid data format from backend');
+        }
+      } catch (error) {
+        console.error('Error loading from backend:', error);
+        showError(`Failed to load from backend: ${error.message}`);
+        updateStatus('Error loading data');
+      }
+    }
+    
+    // Show static data
+    function showStaticData() {
+      clearMessages();
+      updateStatus('Showing static pre-loaded data');
+      
+      const staticProfiles = [
+        { username: 'lilmiquela', bio: 'Change is good. LA • NYC • ? • Not a DJ.', follower_count: 3127450 },
+        { username: 'imma.gram', bio: '💫 Imma // #immagram Tokyo. Fashion. Art. Not human but ❤️', follower_count: 1528963 },
+        { username: 'shudu.gram', bio: 'The World\'s First Digital Supermodel | Created by @thecameronj', follower_count: 842759 },
+        { username: 'noonoouri', bio: 'Digital character | 19yo | Activist | Paris based | Fighting for a better world', follower_count: 738952 },
+        { username: 'knox.frost', bio: 'Aspiring entrepreneur. Trying to make the world a better place.', follower_count: 653124 },
+        { username: 'blawko22', bio: 'LA-based. Always hiding my face 👀', follower_count: 521938 },
+        { username: 'ruby9100m', bio: 'Ruby // Virtual model and artist // Tokyo', follower_count: 437289 },
+        { username: 'bermudaisbae', bio: '19. Smart but not wise. Secretly planning world domination.', follower_count: 329475 },
+        { username: 'aivatar_official', bio: 'AI-generated digital persona | Opinions are my own (or my creator\'s?)', follower_count: 274831 },
+        { username: 'galaxia.gram', bio: 'Beyond human | Cosmic energy | Art & Fashion | ✨', follower_count: 218742 }
+      ];
+      
+      showSuccess('Successfully loaded static data');
+      renderProfiles(staticProfiles);
+    }
+    
+    // Render profiles from Logic Service format
+    function renderProfiles(profiles) {
+      if (!Array.isArray(profiles) || profiles.length === 0) {
+        document.getElementById('profiles-container').innerHTML = '<div class="error">No profiles found.</div>';
+        return;
+      }
+      
+      // Sort profiles by follower count (descending)
+      const sortedProfiles = [...profiles].sort((a, b) => 
+        (b.follower_count || 0) - (a.follower_count || 0)
+      );
+      
+      let html = '';
+      
+      sortedProfiles.forEach((profile, index) => {
+        const rank = index + 1;
+        const username = profile.username || 'Unknown';
+        const bio = profile.biography || profile.bio || '';
+        const followerCount = profile.follower_count || 0;
+        const profileImg = profile.profile_pic_url || getAvatarUrl(username);
+        
+        html += `
+          <div class="profile-card">
+            <div class="rank">${rank}</div>
+            <img src="${profileImg}" alt="${username}" class="profile-image" onerror="this.src='${getAvatarUrl(username)}'">
+            <div class="profile-info">
+              <h2 class="username">@${username}</h2>
+              <p class="bio">${bio}</p>
+              <p class="follower-count">${formatNumber(followerCount)} followers</p>
+            </div>
+          </div>
+        `;
+      });
+      
+      document.getElementById('profiles-container').innerHTML = html;
+    }
+    
+    // Render profiles from backend format
+    function renderBackendProfiles(profiles) {
+      renderProfiles(profiles); // They're similar enough now that we can reuse the same function
+    }
+    
+    // Add event listeners
+    document.getElementById('loadProxyBtn').addEventListener('click', loadViaProxy);
+    document.getElementById('loadDirectBtn').addEventListener('click', loadDirectly);
+    document.getElementById('loadLocalBtn').addEventListener('click', loadFromBackend);
+    document.getElementById('loadStaticBtn').addEventListener('click', showStaticData);
+    
+    // Try to load via proxy on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      // Slight delay to ensure page is fully loaded
+      setTimeout(loadViaProxy, 500);
+    });
+  </script>
+</body>
+</html>

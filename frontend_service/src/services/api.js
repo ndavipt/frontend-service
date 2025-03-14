@@ -196,106 +196,26 @@ const tryMultipleUrls = async (path, options = {}) => {
         
       console.log(`Trying URL: ${fullUrl}`);
       
-      // Try with multiple fetch configurations 
-      let response;
+      // For simple case, try direct fetch first
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        cache: 'no-store',
+        headers: { 
+          'Accept': 'application/json'
+        },
+        mode: 'cors',
+        credentials: 'omit',
+        signal: AbortSignal.timeout(options.timeout || 10000),
+        ...options
+      });
       
-      try {
-        // Now that CORS is fixed on the Logic Service, we can use a simpler direct request
-        response = await fetch(fullUrl, {
-          method: 'GET',
-          cache: 'no-store',
-          headers: { 
-            'Accept': 'application/json'
-          },
-          mode: 'cors',
-          credentials: 'omit',
-          signal: AbortSignal.timeout(options.timeout || 10000),
-          ...options
-        });
-        
-        console.log(`Direct fetch response status: ${response.status} from ${fullUrl}`);
-        
-      } catch (corsError) {
-        console.log(`CORS error with ${fullUrl}: ${corsError.message}`);
-        
-        // Try with a proxy URL if available
-        try {
-          console.log('Trying through local proxy');
-          const proxyPath = path.startsWith('/api/v1') ? path.replace('/api/v1', '') : path;
-          const proxyUrl = `/logic${proxyPath}`;
-          console.log(`Using proxy URL: ${proxyUrl}`);
-          
-          response = await fetch(proxyUrl, {
-            method: 'GET',
-            cache: 'no-store',
-            headers: { 'Accept': 'application/json' },
-            signal: AbortSignal.timeout(options.timeout || 10000)
-          });
-          
-          console.log(`Proxy fetch response status: ${response.status}`);
-          
-        } catch (proxyError) {
-          console.log(`Proxy attempt failed: ${proxyError.message}, trying alternative endpoint format`);
-          
-          // Try alternative endpoint format (with or without /api/v1/ prefix)
-          try {
-            const altPath = path.startsWith('/api/v1/') 
-              ? path.replace('/api/v1/', '/') 
-              : path.startsWith('/') 
-                ? `/api/v1${path}` 
-                : `/api/v1/${path}`;
-            
-            const altUrl = `${secureBaseUrl}${altPath}`;
-            console.log(`Trying alternative URL format: ${altUrl}`);
-            
-            response = await fetch(altUrl, {
-              method: 'GET',
-              cache: 'no-store',
-              headers: { 'Accept': 'application/json' },
-              mode: 'cors',
-              credentials: 'omit',
-              signal: AbortSignal.timeout(options.timeout || 10000)
-            });
-            
-            console.log(`Alternative endpoint response status: ${response.status}`);
-          } catch (altEndpointError) {
-            console.log(`All connection attempts failed, trying no-cors as last resort`);
-            
-            // If all attempts fail, try no-cors as last resort
-            response = await fetch(fullUrl, {
-              method: 'GET',
-              cache: 'no-store',
-              headers: { 'Accept': 'application/json' },
-              mode: 'no-cors', // Last resort mode
-              credentials: 'omit',
-              signal: AbortSignal.timeout(options.timeout || 10000)
-            });
-            
-            console.log(`No-CORS response type: ${response.type}`);
-          }
-        }
-      }
+      console.log(`Fetch response status: ${response.status} from ${fullUrl}`);
       
-      // For no-cors responses, we can't check response.ok or get status
-      if (response.type !== 'opaque' && !response.ok) {
+      if (!response.ok) {
         throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
       }
       
-      let data;
-      try {
-        // For opaque responses from no-cors, this will fail
-        data = await response.json();
-      } catch (jsonError) {
-        if (response.type === 'opaque') {
-          // For opaque responses, we can't parse JSON
-          // Return empty array as fallback
-          console.log(`Got opaque response from ${fullUrl}, using fallback data`);
-          data = [];
-        } else {
-          throw jsonError;
-        }
-      }
-      
+      const data = await response.json();
       console.log(`Successfully connected to ${secureBaseUrl}`);
       return { data, url: secureBaseUrl };
     } catch (error) {
@@ -306,6 +226,71 @@ const tryMultipleUrls = async (path, options = {}) => {
   
   // If we get here, all URLs failed
   throw new Error(`All URLs failed: ${JSON.stringify(errors)}`);
+};
+
+// Simple helper function to fetch data from Logic Service
+export const fetchFromLogicService = async (endpoint, options = {}) => {
+  try {
+    // Make sure the endpoint starts with /
+    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    
+    // Try proxy first - this should work with our setupProxy.js changes
+    const proxyPath = `/logic${path.startsWith('/api/v1') ? path.replace('/api/v1', '') : path}`;
+    console.log(`Trying Logic Service via proxy: ${proxyPath}`);
+    
+    try {
+      const response = await fetch(proxyPath, {
+        method: options.method || 'GET',
+        headers: {
+          'Accept': 'application/json',
+          ...(options.headers || {})
+        },
+        signal: AbortSignal.timeout(options.timeout || 15000)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Logic Service proxy error: ${response.status} ${response.statusText}`);
+      }
+      
+      return await response.json();
+    } catch (proxyError) {
+      console.log(`Proxy request failed: ${proxyError.message}, trying direct connection`);
+      
+      // If proxy fails, try direct connection to Logic Service
+      // Ensure we're using HTTPS
+      let url = DIRECT_LOGIC_SERVICE_URL;
+      if (!url.startsWith('https://') && !url.startsWith('http://')) {
+        url = `https://${url}`;
+      } else if (url.startsWith('http://')) {
+        url = url.replace('http://', 'https://');
+      }
+      
+      // Ensure path has the right format
+      const apiPath = path.startsWith('/api/v1') ? path : `/api/v1${path}`;
+      const directUrl = `${url}${apiPath}`;
+      console.log(`Trying direct connection to Logic Service: ${directUrl}`);
+      
+      const response = await fetch(directUrl, {
+        method: options.method || 'GET',
+        headers: {
+          'Accept': 'application/json',
+          ...(options.headers || {})
+        },
+        mode: 'cors',
+        credentials: 'omit',
+        signal: AbortSignal.timeout(options.timeout || 15000)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Logic Service direct error: ${response.status} ${response.statusText}`);
+      }
+      
+      return await response.json();
+    }
+  } catch (error) {
+    console.error(`Error fetching from Logic Service: ${error.message}`);
+    throw error;
+  }
 };
 
 // API functions for various endpoints
