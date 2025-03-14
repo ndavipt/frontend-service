@@ -22,7 +22,7 @@ There are two ways to deploy the frontend service on Render:
    - Add the following environment variables:
      - `REACT_APP_API_URL` - URL of your backend API (e.g., https://insta-leaderboard-api.onrender.com)
      - `REACT_APP_ANALYTICS_URL` - URL of your analytics service (e.g., https://insta-leaderboard-analytics.onrender.com)
-     - `REACT_APP_SCRAPER_URL` - URL of your scraper service (e.g., https://scraper-service-907s.onrender.com)
+     - `REACT_APP_LOGIC_URL` - URL of your Logic Service (e.g., https://logic-service.onrender.com)
 
 4. **Deploy**
    - Click "Create Web Service"

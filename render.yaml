@@ -9,8 +9,7 @@ services:
         value: https://insta-leaderboard-api.onrender.com
       - key: REACT_APP_ANALYTICS_URL
         value: https://insta-leaderboard-analytics.onrender.com
-      - key: REACT_APP_SCRAPER_URL
-        value: https://scraper-service-907s.onrender.com
+      # REACT_APP_SCRAPER_URL is deprecated, using Logic Service instead
       - key: REACT_APP_LOGIC_URL
         value: https://logic-service.onrender.com
       - key: NODE_TLS_REJECT_UNAUTHORIZED

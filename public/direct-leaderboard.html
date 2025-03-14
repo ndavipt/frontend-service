@@ -178,7 +178,7 @@
               success = true;
               break;
             } else if (Array.isArray(result)) {
-              // Direct scraper format
+              // Direct Logic Service format
               data = result.map((profile, index) => ({
                 ...profile,
                 rank: index + 1,

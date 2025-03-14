@@ -15,7 +15,7 @@ The frontend is designed as a standalone microservice that communicates with:
 
 1. **Main Backend API**: Acts as an API gateway for the frontend
 2. **Analytics Service**: Provides analytics and statistics data
-3. **Scraper Service**: Handles Instagram data collection (usually accessed through the API gateway)
+3. **Logic Service**: Provides data from the backend database and analytics (usually accessed directly)
 
 ## Setup
 

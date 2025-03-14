@@ -2,6 +2,5 @@
 // In production, this file will be overwritten by env.sh
 
 window._env_ = window._env_ || {
-  REACT_APP_LOGIC_URL: "/logic",
-  REACT_APP_SCRAPER_URL: "/scraper"
+  REACT_APP_LOGIC_URL: "https://logic-service.onrender.com"
 };
