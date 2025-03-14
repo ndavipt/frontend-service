@@ -33,7 +33,7 @@ const LOGIC_URL = runtimeEnv.REACT_APP_LOGIC_URL ||
 
 // CORS handling options
 // The Logic Service team has fixed CORS on their end by adding:
-// CORS_ORIGINS=* environment variable to allow all origins
+// ALLOW_ALL_ORIGINS=true environment variable in Render
 
 // Keep CORS proxy as fallback option in case CORS issues return
 const CORS_PROXY = 'https://corsproxy.io/?';
