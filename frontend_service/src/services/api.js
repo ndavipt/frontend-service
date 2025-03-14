@@ -31,6 +31,17 @@ const LOGIC_URL = runtimeEnv.REACT_APP_LOGIC_URL ||
                  CONFIG_LOGIC_URL || 
                  '/logic'; // Use proxy endpoint as default - will handle API versions internally
 
+// ⚠️ CORS EMERGENCY BYPASS - Use a free CORS proxy service
+// This solves cross-origin issues by routing requests through a third-party proxy
+// The proxy adds proper CORS headers to the response
+const CORS_PROXY = 'https://corsproxy.io/?';
+// const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+// const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
+// const CORS_PROXY = 'https://cors.bridged.cc/';
+
+// Flag to enable using CORS proxy for all requests
+const USE_CORS_PROXY = true;
+
 // Create an Axios instance with default config
 const api = axios.create({
   baseURL: API_URL,
@@ -128,31 +139,58 @@ const formatProfileData = (serviceProfiles) => {
 const tryMultipleUrls = async (path, options = {}) => {
   const errors = [];
   
-  // Start with local proxy, then try the configured direct URLs
-  const urlsToTry = [
-    '/logic', // Try the local proxy first - this should have proper CORS handling
-    DIRECT_LOGIC_SERVICE_URL,
-    ...FALLBACK_URLS.filter(url => url !== DIRECT_LOGIC_SERVICE_URL)
-  ];
+  // Start with CORS proxy for emergency bypass, then local proxy, then direct
+  const urlsToTry = USE_CORS_PROXY ? 
+    [
+      // Format each URL with the CORS proxy prefix
+      `${CORS_PROXY}${encodeURIComponent(DIRECT_LOGIC_SERVICE_URL)}`,
+      ...FALLBACK_URLS.map(url => `${CORS_PROXY}${encodeURIComponent(url)}`),
+      '/logic' // Local proxy as fallback
+    ] : 
+    [
+      '/logic', // Local proxy first (if not using CORS proxy)
+      DIRECT_LOGIC_SERVICE_URL,
+      ...FALLBACK_URLS.filter(url => url !== DIRECT_LOGIC_SERVICE_URL)
+    ];
   
   for (const baseUrl of urlsToTry) {
     try {
       // Ensure HTTPS is used, but preserve localhost HTTP for development
       let secureBaseUrl = baseUrl;
-      // Special handling for local proxy
+      // Special handling for different URL types
       if (baseUrl === '/logic') {
         // For local proxy, just use the path directly
         const fullUrl = `${baseUrl}${path.startsWith('/') ? path : '/' + path}`;
         console.log(`Trying local proxy URL: ${fullUrl}`);
+      } else if (baseUrl.startsWith(CORS_PROXY)) {
+        // For CORS proxy URLs, we need to handle the URL differently
+        // The baseUrl already contains the proxy and the encoded target URL
+        // So we just need to append the path to the encoded URL
+        secureBaseUrl = baseUrl;
+        // No changes needed - we'll handle the path appending below
       } else if (!baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1')) {
         // Only force HTTPS for non-localhost URLs
         secureBaseUrl = baseUrl.replace('http:', 'https:');
       }
       
-      // Build full URL - special case for local proxy
-      const fullUrl = baseUrl === '/logic' 
-        ? `${baseUrl}${path.startsWith('/') ? path : '/' + path}`
-        : `${secureBaseUrl}${path}`;
+      // Build full URL based on URL type
+      let fullUrl;
+      if (baseUrl === '/logic') {
+        // Local proxy URL
+        fullUrl = `${baseUrl}${path.startsWith('/') ? path : '/' + path}`;
+      } else if (baseUrl.startsWith(CORS_PROXY)) {
+        // CORS proxy URL - full URL is already encoded except the path
+        // Extract the base URL from the proxy URL
+        const encodedUrl = baseUrl.replace(CORS_PROXY, '');
+        const decodedUrl = decodeURIComponent(encodedUrl);
+        
+        // Re-encode with the path
+        let urlWithPath = decodedUrl + (path.startsWith('/') ? path : '/' + path);
+        fullUrl = `${CORS_PROXY}${encodeURIComponent(urlWithPath)}`;
+      } else {
+        // Regular URL
+        fullUrl = `${secureBaseUrl}${path}`;
+      }
         
       console.log(`Trying URL: ${fullUrl}`);
       
@@ -790,34 +828,17 @@ export const fetchTrends = async (forceRefresh = false) => {
         // Get all accounts from Logic Service using our helper
         console.log('Fetching accounts from Logic Service');
         
-        // Try multiple endpoint formats and direct local proxy
+        // Just use the tryMultipleUrls helper which now has proper CORS proxy support
+        // This will automatically try the CORS proxy, local proxy, and direct connections
         let accountsResult;
         try {
-          // Let's try the local proxy first as it has the most reliable CORS handling
-          console.log('Using local proxy for accounts fetch');
-          const proxyResponse = await fetch('/logic/accounts', {
-            method: 'GET',
-            cache: 'no-store',
-            headers: { 'Accept': 'application/json' }
-          });
-          
-          if (!proxyResponse.ok) {
-            throw new Error(`Proxy responded with ${proxyResponse.status}`);
-          }
-          
-          const data = await proxyResponse.json();
-          accountsResult = { data, url: '/logic' };
-          console.log(`Successfully fetched ${data.length} accounts through proxy`);
-        } catch (proxyError) {
-          console.log(`Proxy fetch failed: ${proxyError.message}, trying direct endpoints`);
-          try {
-            // Try with /api/v1/ prefix
-            accountsResult = await tryMultipleUrls('/api/v1/accounts');
-          } catch (apiV1Error) {
-            console.log('Failed to fetch accounts with /api/v1/ prefix, trying direct endpoint');
-            // Next try with direct endpoint
-            accountsResult = await tryMultipleUrls('/accounts');
-          }
+          // Try with CORS proxy and /api/v1/ prefix (most specific endpoint)
+          accountsResult = await tryMultipleUrls('/api/v1/accounts');
+          console.log(`Successfully fetched accounts data from endpoint`);
+        } catch (apiV1Error) {
+          console.log('First accounts attempt failed, trying without prefix');
+          // Next try without the /api/v1/ prefix
+          accountsResult = await tryMultipleUrls('/accounts');
         }
         
         const accounts = accountsResult.data;
