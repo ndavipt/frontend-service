@@ -25,22 +25,23 @@ const API_URL = runtimeEnv.REACT_APP_API_URL ||
                 CONFIG_API_URL || 
                 (isDev ? `http://localhost:${API_PORT}` : '');
 
-// Configure Logic Service URL - try both with and without /api/v1 prefix
+// Configure Logic Service URL - use only the local proxy
 const LOGIC_URL = runtimeEnv.REACT_APP_LOGIC_URL || 
                  process.env.REACT_APP_LOGIC_URL || 
                  CONFIG_LOGIC_URL || 
-                 '/logic'; // Use proxy endpoint as default - will handle API versions internally
+                 '/logic'; // Use proxy endpoint which now has a permanent routing solution
 
-// CORS handling options
-// The Logic Service team has fixed CORS on their end by adding:
-// ALLOW_ALL_ORIGINS=true environment variable in Render
+// PERMANENT SOLUTION:
+// We're using a server-side proxy in nginx (/logic) that routes requests to the Logic Service
+// This permanently avoids CORS issues because:
+// 1. Browser makes requests to our own domain via /logic endpoint
+// 2. Server forwards those requests to Logic Service behind the scenes
+// 3. No cross-origin requests occur from the browser's perspective
 
-// Keep CORS proxy as fallback option in case CORS issues return
+// No longer needed - keeping for reference
 const CORS_PROXY = 'https://corsproxy.io/?';
-// const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
-// const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
 
-// Flag to enable using CORS proxy - keeping it false since CORS should now work directly
+// Disabled - using server-side proxy instead
 const USE_CORS_PROXY = false;
 
 // Create an Axios instance with default config
@@ -140,19 +141,11 @@ const formatProfileData = (serviceProfiles) => {
 const tryMultipleUrls = async (path, options = {}) => {
   const errors = [];
   
-  // Start with CORS proxy for emergency bypass, then local proxy, then direct
-  const urlsToTry = USE_CORS_PROXY ? 
-    [
-      // Format each URL with the CORS proxy prefix
-      `${CORS_PROXY}${encodeURIComponent(DIRECT_LOGIC_SERVICE_URL)}`,
-      ...FALLBACK_URLS.map(url => `${CORS_PROXY}${encodeURIComponent(url)}`),
-      '/logic' // Local proxy as fallback
-    ] : 
-    [
-      '/logic', // Local proxy first (if not using CORS proxy)
-      DIRECT_LOGIC_SERVICE_URL,
-      ...FALLBACK_URLS.filter(url => url !== DIRECT_LOGIC_SERVICE_URL)
-    ];
+  // PERMANENT SOLUTION: Only use the local nginx proxy which handles CORS
+  // This is the most reliable approach because it avoids CORS entirely
+  const urlsToTry = [
+    '/logic', // Always use local proxy first - this avoids CORS completely
+  ];
   
   for (const baseUrl of urlsToTry) {
     try {
