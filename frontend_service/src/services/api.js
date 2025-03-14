@@ -128,8 +128,9 @@ const formatProfileData = (serviceProfiles) => {
 const tryMultipleUrls = async (path, options = {}) => {
   const errors = [];
   
-  // First try the configured URL
+  // Start with local proxy, then try the configured direct URLs
   const urlsToTry = [
+    '/logic', // Try the local proxy first - this should have proper CORS handling
     DIRECT_LOGIC_SERVICE_URL,
     ...FALLBACK_URLS.filter(url => url !== DIRECT_LOGIC_SERVICE_URL)
   ];
@@ -138,11 +139,21 @@ const tryMultipleUrls = async (path, options = {}) => {
     try {
       // Ensure HTTPS is used, but preserve localhost HTTP for development
       let secureBaseUrl = baseUrl;
-      if (!baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1')) {
+      // Special handling for local proxy
+      if (baseUrl === '/logic') {
+        // For local proxy, just use the path directly
+        const fullUrl = `${baseUrl}${path.startsWith('/') ? path : '/' + path}`;
+        console.log(`Trying local proxy URL: ${fullUrl}`);
+      } else if (!baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1')) {
         // Only force HTTPS for non-localhost URLs
         secureBaseUrl = baseUrl.replace('http:', 'https:');
       }
-      const fullUrl = `${secureBaseUrl}${path}`;
+      
+      // Build full URL - special case for local proxy
+      const fullUrl = baseUrl === '/logic' 
+        ? `${baseUrl}${path.startsWith('/') ? path : '/' + path}`
+        : `${secureBaseUrl}${path}`;
+        
       console.log(`Trying URL: ${fullUrl}`);
       
       // Try with multiple fetch configurations 
