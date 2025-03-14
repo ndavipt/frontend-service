@@ -35,7 +35,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 seconds timeout
+  timeout: 180000, // 3 minutes timeout
 });
 
 // Create a separate axios instance for the Logic Service
@@ -44,7 +44,7 @@ const logicApi = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 seconds timeout
+  timeout: 180000, // 3 minutes timeout
 });
 
 // Add request interceptor for logging
@@ -331,7 +331,7 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
           const logicEndpoint = `${LOGIC_URL}/api/v1/profiles`;
           console.log(`Attempting to fetch profiles from Logic Service at ${logicEndpoint}`);
           
-          logicProfilesResponse = await axios.get(logicEndpoint);
+          logicProfilesResponse = await axios.get(logicEndpoint, { timeout: 180000 });
           console.log(`Successfully connected to Logic Service at ${logicEndpoint}`);
           console.log('Logic service response data:', logicProfilesResponse.data);
           
@@ -346,7 +346,7 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
           // 2. Try direct URL as fallback
           const directEndpoint = `${DIRECT_LOGIC_SERVICE_URL}/api/v1/profiles`;
           console.log(`Attempting to fetch profiles from Logic Service direct URL at ${directEndpoint}`);
-          logicProfilesResponse = await axios.get(directEndpoint);
+          logicProfilesResponse = await axios.get(directEndpoint, { timeout: 180000 });
           console.log(`Successfully connected to Logic Service at direct URL`);
           console.log('Direct logic service response data:', logicProfilesResponse.data);
         }
@@ -433,7 +433,7 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
       console.log('Trying scraper service through local proxy at /scraper/profiles');
       
       try {
-        const proxyResponse = await axios.get('/scraper/profiles');
+        const proxyResponse = await axios.get('/scraper/profiles', { timeout: 180000 });
         console.log('Proxy response data:', proxyResponse.data);
         
         // Check if we got our fallback message instead of actual data
@@ -457,7 +457,7 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
                           'https://scraper-service-907s.onrender.com';
                           
         console.log(`Trying scraper service directly at ${scraperUrl}/profiles`);
-        const scraperResponse = await axios.get(`${scraperUrl}/profiles`);
+        const scraperResponse = await axios.get(`${scraperUrl}/profiles`, { timeout: 180000 });
         
         if (Array.isArray(scraperResponse.data)) {
           return formatScraperData(scraperResponse.data);
