@@ -532,11 +532,22 @@ const enhanceProfilesWithAnalytics = async (profiles) => {
         const currentResponse = await axios.get(`${baseUrl}/api/v1/profiles/current/${profile.username}`);
         const analytics = await fetchProfileAnalytics(profile.username);
         
-        // Extract relevant metrics
-        const followerChange = analytics.changes?.last_change || 0;
-        const twelveHourChange = analytics.growth?.twelve_hour_change || 0;
-        const twentyFourHourChange = analytics.growth?.twenty_four_hour_change || 0;
-        const sevenDayAverage = analytics.rollingAverage?.seven_day_average || 0;
+        // Extract relevant metrics based on the expected data structure:
+        // - analytics.growth.change_12h.change
+        // - analytics.growth.change_24h.change
+        // - analytics.rollingAverage.rolling_avg_7day.average_change
+        // - analytics.changes.changes_between_scrapes[0].change
+        const followerChange = analytics.changes?.changes_between_scrapes?.[0]?.change || 0;
+        const twelveHourChange = analytics.growth?.change_12h?.change || 0;
+        const twentyFourHourChange = analytics.growth?.change_24h?.change || 0;
+        const sevenDayAverage = analytics.rollingAverage?.rolling_avg_7day?.average_change || 0;
+        
+        console.log(`Analytics for ${profile.username}:`, {
+          followerChange,
+          twelveHourChange, 
+          twentyFourHourChange,
+          sevenDayAverage
+        });
         
         // Enhance profile with analytics data
         return {
@@ -604,15 +615,28 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
           throw fetchError;  // Let it fall through to the next handler
         }
         
+        // Log data structure for debugging
+        console.log('Logic Service response structure:', 
+          typeof logicProfilesResponse.data === 'object' ? 
+            (Array.isArray(logicProfilesResponse.data) ? 'Array' : 'Object') : 
+            typeof logicProfilesResponse.data);
+            
+        if (logicProfilesResponse.data) {
+          console.log('Sample data:', JSON.stringify(logicProfilesResponse.data).substring(0, 300) + '...');
+        }
+        
         console.log(`SUCCESS! Received ${logicProfilesResponse.data?.length} profiles from Logic Service`);
         
         if (Array.isArray(logicProfilesResponse.data) && logicProfilesResponse.data.length > 0) {
           // Format and enhance profiles with analytics data
+          // This matches the format from /api/v1/profiles/ endpoint
           const formattedProfiles = logicProfilesResponse.data.map((profile, index) => ({
             username: profile.username,
             bio: profile.biography || '',
-            follower_count: profile.follower_count,
-            profile_img_url: profile.profile_pic_url,
+            follower_count: profile.follower_count || 0,
+            profile_img_url: profile.profile_pic_url || '',
+            full_name: profile.full_name || '',
+            checked_at: profile.checked_at || new Date().toISOString(),
             follower_change: 0, // Will be replaced with actual data
             rank: index + 1
           }));
@@ -837,6 +861,19 @@ export const fetchTrends = async (forceRefresh = false) => {
           // Try with CORS proxy and /api/v1/ prefix (most specific endpoint)
           accountsResult = await tryMultipleUrls('/api/v1/accounts');
           console.log(`Successfully fetched accounts data from endpoint`);
+          
+          // Log the accounts data structure for debugging
+          if (accountsResult && accountsResult.data) {
+            console.log('Accounts data structure:', 
+              typeof accountsResult.data === 'object' ? 
+              (Array.isArray(accountsResult.data) ? 
+                `Array with ${accountsResult.data.length} items` : 'Object') : 
+              typeof accountsResult.data);
+              
+            if (accountsResult.data && accountsResult.data.length > 0) {
+              console.log('Sample account data:', JSON.stringify(accountsResult.data[0]));
+            }
+          }
         } catch (apiV1Error) {
           console.log('First accounts attempt failed, trying without prefix');
           // Next try without the /api/v1/ prefix
