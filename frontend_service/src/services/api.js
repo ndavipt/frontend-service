@@ -164,8 +164,15 @@ const tryMultipleUrls = async (path, options = {}) => {
         secureBaseUrl = baseUrl;
         // No changes needed - we'll handle the path appending below
       } else if (!baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1')) {
-        // Only force HTTPS for non-localhost URLs
-        secureBaseUrl = baseUrl.replace('http:', 'https:');
+        // CRITICAL: Force HTTPS for non-localhost URLs to avoid mixed content errors
+        secureBaseUrl = baseUrl.replace(/^http:/, 'https:');
+        
+        // Double-check that URL is actually HTTPS
+        if (!secureBaseUrl.startsWith('https:')) {
+          secureBaseUrl = 'https:' + secureBaseUrl.substring(secureBaseUrl.indexOf('//'));
+        }
+        
+        console.log(`Forcing HTTPS: ${baseUrl} → ${secureBaseUrl}`);
       }
       
       // Build full URL based on URL type

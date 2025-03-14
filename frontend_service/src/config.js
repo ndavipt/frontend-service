@@ -4,7 +4,10 @@
 
 // API configuration
 export const API_PORT = 5050;
-export const API_URL = process.env.REACT_APP_API_URL || `http://localhost:${API_PORT}`;
+export const API_URL = process.env.REACT_APP_API_URL || 
+                      (window.location.protocol === 'https:' ? 
+                         `https://${window.location.hostname}/api` : 
+                         `http://localhost:${API_PORT}`);
 
 // Legacy scraper microservice URL (deprecated - using Logic Service instead)
 export const SCRAPER_API_URL = process.env.REACT_APP_SCRAPER_URL || 
@@ -16,10 +19,10 @@ export const LOGIC_SERVICE_URL = process.env.REACT_APP_LOGIC_URL ||
                                (window._env_ && window._env_.REACT_APP_LOGIC_URL) || 
                                'https://logic-service-2s7j.onrender.com';  // Use direct URL by default
 
-// Direct Logic Service URL as fallback if proxy fails
+// Direct Logic Service URL as fallback if proxy fails - ALWAYS use HTTPS
 export const DIRECT_LOGIC_SERVICE_URL = 'https://logic-service-2s7j.onrender.com';
 
-// Fallback URLs to try if primary fails - ensure all use HTTPS
+// Fallback URLs to try if primary fails - MUST use HTTPS to avoid mixed content errors
 export const FALLBACK_URLS = [
   'https://logic-service-2s7j.onrender.com',
   'https://logic-service.onrender.com'
