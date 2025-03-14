@@ -247,10 +247,20 @@ export const fetchProfileAnalytics = async (username) => {
     baseUrl = baseUrl.replace('http:', 'https:');
     
     // Make parallel requests to Logic Service for different analytics
+    console.log(`Making parallel analytics requests to ${baseUrl} for ${username}`);
     const [growthResponse, changesResponse, rollingAvgResponse] = await Promise.all([
-      axios.get(`${baseUrl}/api/v1/analytics/growth/${username}`),
-      axios.get(`${baseUrl}/api/v1/analytics/changes/${username}`),
-      axios.get(`${baseUrl}/api/v1/analytics/rolling-average/${username}`)
+      axios.get(`${baseUrl}/api/v1/analytics/growth/${username}`, { 
+        timeout: 5000, // Shorter timeout for analytics requests
+        headers: { 'Accept': 'application/json' }
+      }),
+      axios.get(`${baseUrl}/api/v1/analytics/changes/${username}`, { 
+        timeout: 5000,
+        headers: { 'Accept': 'application/json' }
+      }),
+      axios.get(`${baseUrl}/api/v1/analytics/rolling-average/${username}`, { 
+        timeout: 5000,
+        headers: { 'Accept': 'application/json' }
+      })
     ]);
     
     // Return combined analytics data
@@ -333,11 +343,26 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
         
         // Try different URLs for the Logic Service
         try {
+          // First try health check to verify service is up
+          try {
+            console.log('Testing Logic Service health endpoint');
+            const healthResponse = await axios.get(`${LOGIC_URL}/health`, { 
+              timeout: 10000,
+              headers: { 'Accept': 'application/json' }
+            });
+            console.log('Logic Service health check response:', healthResponse.data);
+          } catch (healthError) {
+            console.log('Logic Service health check failed:', healthError.message);
+          }
+        
           // 1. Try the normal URL first
           const logicEndpoint = `${LOGIC_URL}/api/v1/profiles`;
           console.log(`Attempting to fetch profiles from Logic Service at ${logicEndpoint}`);
           
-          logicProfilesResponse = await axios.get(logicEndpoint, { timeout: 180000 });
+          logicProfilesResponse = await axios.get(logicEndpoint, { 
+            timeout: 30000, // Reduced timeout for better user experience
+            headers: { 'Accept': 'application/json' }
+          });
           console.log(`Successfully connected to Logic Service at ${logicEndpoint}`);
           console.log('Logic service response data:', logicProfilesResponse.data);
           
@@ -352,7 +377,10 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
           // 2. Try direct URL as fallback (ensure HTTPS)
           const directEndpoint = `${DIRECT_LOGIC_SERVICE_URL.replace('http:', 'https:')}/api/v1/profiles`;
           console.log(`Attempting to fetch profiles from Logic Service direct URL at ${directEndpoint}`);
-          logicProfilesResponse = await axios.get(directEndpoint, { timeout: 180000 });
+          logicProfilesResponse = await axios.get(directEndpoint, { 
+            timeout: 30000,
+            headers: { 'Accept': 'application/json' }
+          });
           console.log(`Successfully connected to Logic Service at direct URL`);
           console.log('Direct logic service response data:', logicProfilesResponse.data);
         }
@@ -446,8 +474,22 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
                              
         console.log(`Making final direct attempt to Logic Service at ${directLogicUrl}/api/v1/profiles`);
         
+        // Make a simple health check first
+        try {
+          const healthCheck = await axios.get(`${directLogicUrl}/health`, {
+            timeout: 5000,
+            headers: { 'Accept': 'application/json' }
+          });
+          console.log('Final attempt health check successful:', healthCheck.data);
+        } catch (healthError) {
+          console.log('Final attempt health check failed:', healthError.message);
+          // Try with the scraper service URL as a last resort
+          directLogicUrl = 'https://scraper-service-907s.onrender.com';
+          console.log(`Trying scraper service as last resort: ${directLogicUrl}/api/v1/profiles`);
+        }
+        
         const finalResponse = await axios.get(`${directLogicUrl}/api/v1/profiles`, { 
-          timeout: 180000,
+          timeout: 30000, // Reduced timeout for better UX
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
