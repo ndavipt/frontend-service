@@ -149,15 +149,12 @@ const tryMultipleUrls = async (path, options = {}) => {
       let response;
       
       try {
-        // First try standard CORS mode with proper headers
+        // First try direct CORS mode with simplified headers since Logic Service now has proper CORS
         response = await fetch(fullUrl, {
           method: 'GET',
           cache: 'no-store',
           headers: { 
-            'Accept': 'application/json',
-            'Origin': window.location.origin,
-            'Access-Control-Request-Method': 'GET',
-            'Access-Control-Request-Headers': 'content-type,accept'
+            'Accept': 'application/json'
           },
           mode: 'cors',
           credentials: 'omit',
@@ -165,7 +162,7 @@ const tryMultipleUrls = async (path, options = {}) => {
           ...options
         });
         
-        console.log(`Initial fetch response status: ${response.status}`);
+        console.log(`Direct fetch response status: ${response.status}`);
         
       } catch (corsError) {
         console.log(`CORS error with ${fullUrl}: ${corsError.message}`);
@@ -187,19 +184,44 @@ const tryMultipleUrls = async (path, options = {}) => {
           console.log(`Proxy fetch response status: ${response.status}`);
           
         } catch (proxyError) {
-          console.log(`Proxy attempt failed: ${proxyError.message}, trying no-cors as last resort`);
+          console.log(`Proxy attempt failed: ${proxyError.message}, trying alternative endpoint format`);
           
-          // If CORS and proxy both fail, try no-cors as last resort
-          response = await fetch(fullUrl, {
-            method: 'GET',
-            cache: 'no-store',
-            headers: { 'Accept': 'application/json' },
-            mode: 'no-cors', // Last resort mode
-            credentials: 'omit',
-            signal: AbortSignal.timeout(options.timeout || 10000)
-          });
-          
-          console.log(`No-CORS response type: ${response.type}`);
+          // Try alternative endpoint format (with or without /api/v1/ prefix)
+          try {
+            const altPath = path.startsWith('/api/v1/') 
+              ? path.replace('/api/v1/', '/') 
+              : path.startsWith('/') 
+                ? `/api/v1${path}` 
+                : `/api/v1/${path}`;
+            
+            const altUrl = `${secureBaseUrl}${altPath}`;
+            console.log(`Trying alternative URL format: ${altUrl}`);
+            
+            response = await fetch(altUrl, {
+              method: 'GET',
+              cache: 'no-store',
+              headers: { 'Accept': 'application/json' },
+              mode: 'cors',
+              credentials: 'omit',
+              signal: AbortSignal.timeout(options.timeout || 10000)
+            });
+            
+            console.log(`Alternative endpoint response status: ${response.status}`);
+          } catch (altEndpointError) {
+            console.log(`All connection attempts failed, trying no-cors as last resort`);
+            
+            // If all attempts fail, try no-cors as last resort
+            response = await fetch(fullUrl, {
+              method: 'GET',
+              cache: 'no-store',
+              headers: { 'Accept': 'application/json' },
+              mode: 'no-cors', // Last resort mode
+              credentials: 'omit',
+              signal: AbortSignal.timeout(options.timeout || 10000)
+            });
+            
+            console.log(`No-CORS response type: ${response.type}`);
+          }
         }
       }
       
