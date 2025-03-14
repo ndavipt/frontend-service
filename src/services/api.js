@@ -427,43 +427,44 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
       
       return response.data;
     } catch (error) {
-      console.log('Error fetching from primary API, trying scraper service directly', error);
+      console.log('Error fetching from primary API, making one final attempt to Logic Service', error);
       
-      // Try through our Nginx proxy first (avoids CORS issues)
-      console.log('Trying scraper service through local proxy at /scraper/profiles');
-      
+      // Make one final direct attempt to the Logic Service
       try {
-        const proxyResponse = await axios.get('/scraper/profiles', { timeout: 180000 });
-        console.log('Proxy response data:', proxyResponse.data);
+        const directLogicUrl = process.env.REACT_APP_LOGIC_URL || 
+                             (window._env_ && window._env_.REACT_APP_LOGIC_URL) || 
+                             'https://logic-service.onrender.com';
+                             
+        console.log(`Making final direct attempt to Logic Service at ${directLogicUrl}/api/v1/profiles`);
         
-        // Check if we got our fallback message instead of actual data
-        if (proxyResponse.data && proxyResponse.data.status === 'fallback') {
-          console.log('Received fallback response, trying direct connection');
-          throw new Error('Fallback response received');
-        }
+        const finalResponse = await axios.get(`${directLogicUrl}/api/v1/profiles`, { 
+          timeout: 180000,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        });
         
-        if (Array.isArray(proxyResponse.data)) {
-          console.log(`Successfully received ${proxyResponse.data.length} profiles through proxy`);
-          return formatScraperData(proxyResponse.data);
+        if (Array.isArray(finalResponse.data) && finalResponse.data.length > 0) {
+          console.log(`Final attempt successful! Received ${finalResponse.data.length} profiles`);
+          
+          // Format the profiles for the leaderboard
+          const formattedProfiles = finalResponse.data.map((profile, index) => ({
+            username: profile.username,
+            bio: profile.biography || '',
+            follower_count: profile.follower_count,
+            profile_img_url: profile.profile_pic_url,
+            follower_change: 0, // Will be replaced with analytics data
+            rank: index + 1
+          }));
+          
+          return {
+            leaderboard: formattedProfiles,
+            updated_at: new Date().toISOString()
+          };
         }
-      } catch (proxyError) {
-        console.log('Proxy attempt failed, trying direct connection', proxyError);
-      }
-      
-      // If proxy fails, try direct connection as last resort
-      try {
-        const scraperUrl = process.env.REACT_APP_SCRAPER_URL || 
-                          (window._env_ && window._env_.REACT_APP_SCRAPER_URL) || 
-                          'https://scraper-service-907s.onrender.com';
-                          
-        console.log(`Trying scraper service directly at ${scraperUrl}/profiles`);
-        const scraperResponse = await axios.get(`${scraperUrl}/profiles`, { timeout: 180000 });
-        
-        if (Array.isArray(scraperResponse.data)) {
-          return formatScraperData(scraperResponse.data);
-        }
-      } catch (directError) {
-        console.log('Direct connection failed, using mock data', directError);
+      } catch (finalError) {
+        console.log('Final attempt to Logic Service failed', finalError);
       }
       
       // If all else fails, use mock data
