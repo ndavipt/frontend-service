@@ -6,15 +6,27 @@
 export const API_PORT = 5050;
 export const API_URL = process.env.REACT_APP_API_URL || `http://localhost:${API_PORT}`;
 
-// Scraper microservice URL (can be accessed directly or through proxy)
+// Legacy scraper microservice URL (deprecated - using Logic Service instead)
 export const SCRAPER_API_URL = process.env.REACT_APP_SCRAPER_URL || 
                              (window._env_ && window._env_.REACT_APP_SCRAPER_URL) || 
-                             'https://scraper-service-907s.onrender.com';
+                             'https://logic-service.onrender.com';
 
 // Logic Service URL - handles all data analytics
 export const LOGIC_SERVICE_URL = process.env.REACT_APP_LOGIC_URL || 
                                (window._env_ && window._env_.REACT_APP_LOGIC_URL) || 
-                               'https://logic-service.onrender.com';
+                               'https://logic-service-2s7j.onrender.com';  // Use direct URL by default
+
+// Direct Logic Service URL as fallback if proxy fails
+export const DIRECT_LOGIC_SERVICE_URL = 'https://logic-service-2s7j.onrender.com';
+
+// Fallback URLs to try if primary fails - ensure all use HTTPS
+export const FALLBACK_URLS = [
+  'https://logic-service-2s7j.onrender.com',
+  'https://logic-service.onrender.com'
+];
+
+// Flag to use direct browser fetch instead of axios for problematic SSL connections
+export const USE_FETCH_FOR_DIRECT = true;
 
 // API endpoints
 export const API_ENDPOINTS = {
@@ -77,7 +89,7 @@ export const getProfileImageUrl = (profileImgUrl, username) => {
     // Try using the images endpoint first (connects to database)
     return `${IMAGE_ROUTE}/${hash}.jpg`;
   } else if (profileImgUrl && profileImgUrl.startsWith('http')) {
-    // This is a direct URL from Instagram or the scraper service
+    // This is a direct URL from Instagram or the Logic Service
     
     // Try to use the image directly first - most modern browsers support CORS now
     return profileImgUrl;
@@ -87,7 +99,7 @@ export const getProfileImageUrl = (profileImgUrl, username) => {
     // const encodedUrl = encodeURIComponent(profileImgUrl);
     // return `/api/proxy-image?url=${encodedUrl}`;
   } else if (profileImgUrl && !profileImgUrl.includes(':')) {
-    // This might be a simple ID or hash from the scraper
+    // This might be a simple ID or hash from the Logic Service
     // We'll route it through our image endpoint
     return `${IMAGE_ROUTE}/${profileImgUrl}`;
   }

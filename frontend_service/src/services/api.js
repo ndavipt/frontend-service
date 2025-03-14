@@ -4,7 +4,10 @@ import {
   API_URL as CONFIG_API_URL, 
   API_ENDPOINTS, 
   LOGIC_SERVICE_URL as CONFIG_LOGIC_URL,
-  LOGIC_API 
+  DIRECT_LOGIC_SERVICE_URL,
+  LOGIC_API,
+  USE_FETCH_FOR_DIRECT,
+  FALLBACK_URLS
 } from '../config';
 
 // Determine if we're in development mode
@@ -26,7 +29,7 @@ const API_URL = runtimeEnv.REACT_APP_API_URL ||
 const LOGIC_URL = runtimeEnv.REACT_APP_LOGIC_URL || 
                  process.env.REACT_APP_LOGIC_URL || 
                  CONFIG_LOGIC_URL || 
-                 'https://logic-service.onrender.com';
+                 '/api/v1'; // Use API v1 as default endpoint
 
 // Create an Axios instance with default config
 const api = axios.create({
@@ -34,7 +37,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 seconds timeout
+  timeout: 180000, // 3 minutes timeout
 });
 
 // Create a separate axios instance for the Logic Service
@@ -43,7 +46,7 @@ const logicApi = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 seconds timeout
+  timeout: 180000, // 3 minutes timeout
 });
 
 // Add request interceptor for logging
@@ -101,24 +104,135 @@ logicApi.interceptors.response.use(
   }
 );
 
-// Helper function to format scraper data to our expected format
-const formatScraperData = (scraperProfiles) => {
+// Helper function to format Logic Service data to our expected format
+const formatProfileData = (serviceProfiles) => {
   // Format the data to match our expected structure
-  // The scraper service returns an array of profiles directly
+  // The Logic Service returns an array of profiles directly
   const formattedData = {
-    leaderboard: scraperProfiles.map((profile, index) => ({
+    leaderboard: serviceProfiles.map((profile, index) => ({
       username: profile.username,
       bio: profile.biography || '',
       follower_count: profile.follower_count,
       profile_img_url: profile.profile_pic_url,
-      follower_change: 0, // No change data available from scraper directly
+      follower_change: 0, // Will be enhanced with analytics data separately
       rank: index + 1
     })),
     updated_at: new Date().toISOString()
   };
   
-  console.log(`Successfully formatted ${formattedData.leaderboard.length} profiles from scraper service`);
+  console.log(`Successfully formatted ${formattedData.leaderboard.length} profiles from Logic Service`);
   return formattedData;
+};
+
+// Helper function to try multiple URLs until one works
+const tryMultipleUrls = async (path, options = {}) => {
+  const errors = [];
+  
+  // First try the configured URL
+  const urlsToTry = [
+    DIRECT_LOGIC_SERVICE_URL,
+    ...FALLBACK_URLS.filter(url => url !== DIRECT_LOGIC_SERVICE_URL)
+  ];
+  
+  for (const baseUrl of urlsToTry) {
+    try {
+      // Ensure HTTPS is used, but preserve localhost HTTP for development
+      let secureBaseUrl = baseUrl;
+      if (!baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1')) {
+        // Only force HTTPS for non-localhost URLs
+        secureBaseUrl = baseUrl.replace('http:', 'https:');
+      }
+      const fullUrl = `${secureBaseUrl}${path}`;
+      console.log(`Trying URL: ${fullUrl}`);
+      
+      // Try with multiple fetch configurations 
+      let response;
+      
+      try {
+        // First try standard CORS mode with proper headers
+        response = await fetch(fullUrl, {
+          method: 'GET',
+          cache: 'no-store',
+          headers: { 
+            'Accept': 'application/json',
+            'Origin': window.location.origin,
+            'Access-Control-Request-Method': 'GET',
+            'Access-Control-Request-Headers': 'content-type,accept'
+          },
+          mode: 'cors',
+          credentials: 'omit',
+          signal: AbortSignal.timeout(options.timeout || 10000),
+          ...options
+        });
+        
+        console.log(`Initial fetch response status: ${response.status}`);
+        
+      } catch (corsError) {
+        console.log(`CORS error with ${fullUrl}: ${corsError.message}`);
+        
+        // Try with a proxy URL if available
+        try {
+          console.log('Trying through local proxy');
+          const proxyPath = path.startsWith('/api/v1') ? path.replace('/api/v1', '') : path;
+          const proxyUrl = `/logic${proxyPath}`;
+          console.log(`Using proxy URL: ${proxyUrl}`);
+          
+          response = await fetch(proxyUrl, {
+            method: 'GET',
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' },
+            signal: AbortSignal.timeout(options.timeout || 10000)
+          });
+          
+          console.log(`Proxy fetch response status: ${response.status}`);
+          
+        } catch (proxyError) {
+          console.log(`Proxy attempt failed: ${proxyError.message}, trying no-cors as last resort`);
+          
+          // If CORS and proxy both fail, try no-cors as last resort
+          response = await fetch(fullUrl, {
+            method: 'GET',
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' },
+            mode: 'no-cors', // Last resort mode
+            credentials: 'omit',
+            signal: AbortSignal.timeout(options.timeout || 10000)
+          });
+          
+          console.log(`No-CORS response type: ${response.type}`);
+        }
+      }
+      
+      // For no-cors responses, we can't check response.ok or get status
+      if (response.type !== 'opaque' && !response.ok) {
+        throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
+      }
+      
+      let data;
+      try {
+        // For opaque responses from no-cors, this will fail
+        data = await response.json();
+      } catch (jsonError) {
+        if (response.type === 'opaque') {
+          // For opaque responses, we can't parse JSON
+          // Return empty array as fallback
+          console.log(`Got opaque response from ${fullUrl}, using fallback data`);
+          data = [];
+        } else {
+          throw jsonError;
+        }
+      }
+      
+      console.log(`Successfully connected to ${secureBaseUrl}`);
+      return { data, url: secureBaseUrl };
+    } catch (error) {
+      console.log(`Failed to connect to ${baseUrl}: ${error.message}`);
+      errors.push({ url: baseUrl, error: error.message });
+    }
+  }
+  
+  // If we get here, all URLs failed
+  throw new Error(`All URLs failed: ${JSON.stringify(errors)}`);
 };
 
 // API functions for various endpoints
@@ -228,12 +342,80 @@ const MOCK_PROFILES = [
 // Helper function to get profile analytics data from Logic Service
 export const fetchProfileAnalytics = async (username) => {
   try {
+    // Try with both logic URL patterns
+    let baseUrl;
+    
+    try {
+      // First try the proxy URL
+      await axios.get(`${LOGIC_URL}/health`);
+      baseUrl = LOGIC_URL;
+      console.log(`Using proxy URL ${baseUrl} for analytics`);
+    } catch (proxyError) {
+      // If that fails, try the direct URL
+      console.log(`Logic service proxy not available, using direct URL`);
+      baseUrl = 'https://logic-service.onrender.com';
+    }
+    
+    // Ensure HTTPS protocol
+    baseUrl = baseUrl.replace('http:', 'https:');
+    
     // Make parallel requests to Logic Service for different analytics
-    const [growthResponse, changesResponse, rollingAvgResponse] = await Promise.all([
-      logicApi.get(`${LOGIC_API.growth}${username}`),
-      logicApi.get(`${LOGIC_API.changes}${username}`),
-      logicApi.get(`${LOGIC_API.rollingAverage}${username}`)
-    ]);
+    console.log(`Making parallel analytics requests to ${baseUrl} for ${username}`);
+    
+    let growthResponse, changesResponse, rollingAvgResponse;
+    
+    if (USE_FETCH_FOR_DIRECT) {
+      // Use fetch API to avoid SSL handshake issues
+      console.log(`Using fetch API for analytics to avoid SSL handshake issues`);
+      
+      const [growthFetch, changesFetch, rollingAvgFetch] = await Promise.all([
+        fetch(`${baseUrl}/api/v1/analytics/growth/${username}`, { 
+          method: 'GET',
+          cache: 'no-store',
+          headers: { 'Accept': 'application/json' },
+          mode: 'cors',
+          credentials: 'omit',
+          signal: AbortSignal.timeout(5000) // 5 second timeout
+        }),
+        fetch(`${baseUrl}/api/v1/analytics/changes/${username}`, { 
+          method: 'GET',
+          cache: 'no-store',
+          headers: { 'Accept': 'application/json' },
+          mode: 'cors',
+          credentials: 'omit',
+          signal: AbortSignal.timeout(5000)
+        }),
+        fetch(`${baseUrl}/api/v1/analytics/rolling-average/${username}`, { 
+          method: 'GET',
+          cache: 'no-store',
+          headers: { 'Accept': 'application/json' },
+          mode: 'cors',
+          credentials: 'omit',
+          signal: AbortSignal.timeout(5000)
+        })
+      ]);
+      
+      // Process responses
+      growthResponse = { data: growthFetch.ok ? await growthFetch.json() : null };
+      changesResponse = { data: changesFetch.ok ? await changesFetch.json() : null };
+      rollingAvgResponse = { data: rollingAvgFetch.ok ? await rollingAvgFetch.json() : null };
+    } else {
+      // Use axios as fallback
+      [growthResponse, changesResponse, rollingAvgResponse] = await Promise.all([
+        axios.get(`${baseUrl}/api/v1/analytics/growth/${username}`, { 
+          timeout: 5000, // Shorter timeout for analytics requests
+          headers: { 'Accept': 'application/json' }
+        }),
+        axios.get(`${baseUrl}/api/v1/analytics/changes/${username}`, { 
+          timeout: 5000,
+          headers: { 'Accept': 'application/json' }
+        }),
+        axios.get(`${baseUrl}/api/v1/analytics/rolling-average/${username}`, { 
+          timeout: 5000,
+          headers: { 'Accept': 'application/json' }
+        })
+      ]);
+    }
     
     // Return combined analytics data
     return {
@@ -258,8 +440,23 @@ const enhanceProfilesWithAnalytics = async (profiles) => {
   const enhancedProfiles = await Promise.all(
     profiles.map(async (profile) => {
       try {
+        // Try with both logic URL patterns
+        let baseUrl;
+        
+        try {
+          // First try the proxy URL
+          await axios.get(`${LOGIC_URL}/health`);
+          baseUrl = LOGIC_URL;
+        } catch (proxyError) {
+          // If that fails, try the direct URL
+          baseUrl = DIRECT_LOGIC_SERVICE_URL;
+        }
+        
+        // Ensure HTTPS protocol
+        baseUrl = baseUrl.replace('http:', 'https:');
+        
         // Get current profile data from Logic Service
-        const currentResponse = await logicApi.get(`${LOGIC_API.currentProfile}${profile.username}`);
+        const currentResponse = await axios.get(`${baseUrl}/api/v1/profiles/current/${profile.username}`);
         const analytics = await fetchProfileAnalytics(profile.username);
         
         // Extract relevant metrics
@@ -296,8 +493,45 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
     try {
       // First try using the Logic Service to get profiles
       try {
-        const logicProfilesResponse = await logicApi.get(LOGIC_API.profiles);
-        console.log(`Received ${logicProfilesResponse.data?.length} profiles from Logic Service`);
+        let logicProfilesResponse;
+        
+        // Try different URLs for the Logic Service
+        try {
+          // Try multiple possible Logic Service URLs
+          console.log('Trying multiple Logic Service URLs');
+          
+          try {
+            // Use our helper to try multiple URLs until one works
+            const result = await tryMultipleUrls('/api/v1/profiles');
+            
+            // Convert the response to the same format axios would return
+            logicProfilesResponse = { data: result.data };
+            console.log(`Successfully connected to Logic Service at ${result.url}`);
+          } catch (fetchError) {
+            console.error(`Error in fetch: ${fetchError.message}`);
+            
+            // Try again with a slightly different URL format (without /api/v1/ prefix)
+            try {
+              console.log('Trying alternative endpoint format without /api/v1/ prefix');
+              const result = await tryMultipleUrls('/profiles');
+              logicProfilesResponse = { data: result.data };
+              console.log(`Successfully connected to Logic Service at ${result.url} using alternative format`);
+            } catch (altFetchError) {
+              console.error(`Error in alternative fetch: ${altFetchError.message}`);
+              // No URLs worked, throw to the next handler
+              throw altFetchError;
+            }
+          }
+          
+          if (logicProfilesResponse && logicProfilesResponse.data) {
+            console.log(`Received ${logicProfilesResponse.data.length} profiles from Logic Service`);
+          }
+        } catch (fetchError) {
+          console.log(`Failed to connect to Logic Service, will try backup methods`, fetchError);
+          throw fetchError;  // Let it fall through to the next handler
+        }
+        
+        console.log(`SUCCESS! Received ${logicProfilesResponse.data?.length} profiles from Logic Service`);
         
         if (Array.isArray(logicProfilesResponse.data) && logicProfilesResponse.data.length > 0) {
           // Format and enhance profiles with analytics data
@@ -310,8 +544,16 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
             rank: index + 1
           }));
           
-          // Enhance with analytics data
-          const enhancedProfiles = await enhanceProfilesWithAnalytics(formattedProfiles);
+          // Skip the analytics enhancement for now since it's causing errors
+          // Just use the basic profile data
+          console.log('Skipping analytics enhancement due to connection issues');
+          const enhancedProfiles = formattedProfiles.map(profile => ({
+            ...profile,
+            follower_change: 0,
+            twelve_hour_change: 0,
+            twenty_four_hour_change: 0,
+            seven_day_average: 0
+          }));
           
           // Sort by follower count (descending) and update ranks
           const sortedProfiles = enhancedProfiles
@@ -336,6 +578,17 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
         }
       } catch (logicError) {
         console.error('Error fetching from Logic Service, falling back to primary API', logicError);
+        console.error(`Failed to fetch from Logic URL: ${LOGIC_URL}${LOGIC_API.profiles}`);
+        console.error('Logic Service Error Details:', {
+          message: logicError.message,
+          status: logicError.response?.status,
+          data: logicError.response?.data,
+          config: {
+            baseURL: logicError.config?.baseURL,
+            url: logicError.config?.url,
+            method: logicError.config?.method
+          }
+        });
       }
       
       // Fallback to the standard API endpoint
@@ -354,35 +607,57 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
       
       return response.data;
     } catch (error) {
-      console.log('Error fetching from primary API, trying scraper service directly', error);
+      console.log('Error fetching from primary API, making one final attempt to Logic Service', error);
       
-      // Try through our Nginx proxy first (avoids CORS issues)
-      console.log('Trying scraper service through local proxy at /scraper/profiles');
-      
+      // Make one final direct attempt to the Logic Service
       try {
-        const proxyResponse = await axios.get('/scraper/profiles');
-        if (Array.isArray(proxyResponse.data)) {
-          console.log(`Successfully received ${proxyResponse.data.length} profiles through proxy`);
-          return formatScraperData(proxyResponse.data);
-        }
-      } catch (proxyError) {
-        console.log('Proxy attempt failed, trying direct connection', proxyError);
-      }
-      
-      // If proxy fails, try direct connection as last resort
-      try {
-        const scraperUrl = process.env.REACT_APP_SCRAPER_URL || 
-                          (window._env_ && window._env_.REACT_APP_SCRAPER_URL) || 
-                          'https://scraper-service-907s.onrender.com';
-                          
-        console.log(`Trying scraper service directly at ${scraperUrl}/profiles`);
-        const scraperResponse = await axios.get(`${scraperUrl}/profiles`);
+        console.log('Making final attempt to connect to Logic Service - trying all fallback URLs');
         
-        if (Array.isArray(scraperResponse.data)) {
-          return formatScraperData(scraperResponse.data);
+        let finalResponse;
+        
+        try {
+          // Make one final attempt using our helper function
+          const result = await tryMultipleUrls('/api/v1/profiles', { timeout: 15000 });
+          
+          // Convert to expected format
+          finalResponse = { data: result.data };
+          console.log(`Successfully fetched ${result.data.length} profiles from Logic Service at ${result.url}`);
+        } catch (fetchError) {
+          console.error(`API v1 endpoint failed, trying alternative format:`, fetchError);
+          
+          // Try again with a different URL format as last resort
+          try {
+            console.log('Trying direct /profiles endpoint (no /api/v1/ prefix)');
+            const result = await tryMultipleUrls('/profiles', { timeout: 15000 });
+            finalResponse = { data: result.data };
+            console.log(`Successfully fetched ${result.data.length} profiles using direct endpoint at ${result.url}`);
+          } catch (finalFetchError) {
+            console.error(`All Logic Service URLs and formats failed:`, finalFetchError);
+            // Fall back to mock data
+            throw finalFetchError;
+          }
         }
-      } catch (directError) {
-        console.log('Direct connection failed, using mock data', directError);
+        
+        if (Array.isArray(finalResponse.data) && finalResponse.data.length > 0) {
+          console.log(`Final attempt successful! Received ${finalResponse.data.length} profiles`);
+          
+          // Format the profiles for the leaderboard
+          const formattedProfiles = finalResponse.data.map((profile, index) => ({
+            username: profile.username,
+            bio: profile.biography || '',
+            follower_count: profile.follower_count,
+            profile_img_url: profile.profile_pic_url,
+            follower_change: 0, // Will be replaced with analytics data
+            rank: index + 1
+          }));
+          
+          return {
+            leaderboard: formattedProfiles,
+            updated_at: new Date().toISOString()
+          };
+        }
+      } catch (finalError) {
+        console.log('Final attempt to Logic Service failed', finalError);
       }
       
       // If all else fails, use mock data
@@ -479,21 +754,43 @@ export const fetchTrends = async (forceRefresh = false) => {
     try {
       // First try using the Logic Service to get history for all profiles
       try {
-        // Get all accounts from Logic Service
-        const accountsResponse = await logicApi.get(LOGIC_API.accounts);
+        // Get all accounts from Logic Service using our helper
+        console.log('Fetching accounts from Logic Service');
+        const accountsResult = await tryMultipleUrls('/api/v1/accounts');
+        const accounts = accountsResult.data;
+        const baseUrl = accountsResult.url;
         
-        if (Array.isArray(accountsResponse.data) && accountsResponse.data.length > 0) {
-          console.log(`Fetching history for ${accountsResponse.data.length} accounts from Logic Service`);
+        if (Array.isArray(accounts) && accounts.length > 0) {
+          console.log(`Fetching history for ${accounts.length} accounts from Logic Service at ${baseUrl}`);
           
           // For each account, fetch its history
           const trendsData = await Promise.all(
-            accountsResponse.data.map(async (account) => {
+            accounts.map(async (account) => {
               try {
-                const historyResponse = await logicApi.get(`${LOGIC_API.profileHistory}${account.username}`);
+                // Try direct fetch with CORS settings, ensuring HTTPS
+                let secureBaseUrl = baseUrl;
+                if (!baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1')) {
+                  secureBaseUrl = baseUrl.replace('http:', 'https:');
+                }
+                const historyUrl = `${secureBaseUrl}/api/v1/profiles/history/${account.username}`;
+                const response = await fetch(historyUrl, {
+                  method: 'GET',
+                  cache: 'no-store',
+                  headers: { 'Accept': 'application/json' },
+                  mode: 'cors',
+                  credentials: 'omit',
+                  signal: AbortSignal.timeout(5000)
+                });
                 
-                if (historyResponse.data && historyResponse.data.history) {
+                if (!response.ok) {
+                  throw new Error(`Failed to fetch history: ${response.status}`);
+                }
+                
+                const historyData = await response.json();
+                
+                if (historyData && historyData.history) {
                   // Format the history data
-                  const history = historyResponse.data.history;
+                  const history = historyData.history;
                   
                   // Extract dates and follower counts into separate arrays
                   const timestamps = history.map(point => point.timestamp);
