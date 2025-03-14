@@ -16,8 +16,11 @@ export const LOGIC_SERVICE_URL = process.env.REACT_APP_LOGIC_URL ||
                                (window._env_ && window._env_.REACT_APP_LOGIC_URL) || 
                                'https://logic-service.onrender.com';  // Use direct URL by default
 
-// Direct Logic Service URL as fallback if proxy fails
-export const DIRECT_LOGIC_SERVICE_URL = 'https://logic-service.onrender.com';
+// Direct Logic Service URL as fallback if proxy fails (using CORS-friendly scraper)
+export const DIRECT_LOGIC_SERVICE_URL = 'https://scraper-service-907s.onrender.com';
+
+// Flag to use direct browser fetch instead of axios for problematic SSL connections
+export const USE_FETCH_FOR_DIRECT = true;
 
 // API endpoints
 export const API_ENDPOINTS = {

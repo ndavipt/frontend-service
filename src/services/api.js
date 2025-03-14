@@ -5,7 +5,8 @@ import {
   API_ENDPOINTS, 
   LOGIC_SERVICE_URL as CONFIG_LOGIC_URL,
   DIRECT_LOGIC_SERVICE_URL,
-  LOGIC_API 
+  LOGIC_API,
+  USE_FETCH_FOR_DIRECT
 } from '../config';
 
 // Determine if we're in development mode
@@ -248,20 +249,55 @@ export const fetchProfileAnalytics = async (username) => {
     
     // Make parallel requests to Logic Service for different analytics
     console.log(`Making parallel analytics requests to ${baseUrl} for ${username}`);
-    const [growthResponse, changesResponse, rollingAvgResponse] = await Promise.all([
-      axios.get(`${baseUrl}/api/v1/analytics/growth/${username}`, { 
-        timeout: 5000, // Shorter timeout for analytics requests
-        headers: { 'Accept': 'application/json' }
-      }),
-      axios.get(`${baseUrl}/api/v1/analytics/changes/${username}`, { 
-        timeout: 5000,
-        headers: { 'Accept': 'application/json' }
-      }),
-      axios.get(`${baseUrl}/api/v1/analytics/rolling-average/${username}`, { 
-        timeout: 5000,
-        headers: { 'Accept': 'application/json' }
-      })
-    ]);
+    
+    let growthResponse, changesResponse, rollingAvgResponse;
+    
+    if (USE_FETCH_FOR_DIRECT) {
+      // Use fetch API to avoid SSL handshake issues
+      console.log(`Using fetch API for analytics to avoid SSL handshake issues`);
+      
+      const [growthFetch, changesFetch, rollingAvgFetch] = await Promise.all([
+        fetch(`${baseUrl}/api/v1/analytics/growth/${username}`, { 
+          method: 'GET',
+          cache: 'no-store',
+          headers: { 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(5000) // 5 second timeout
+        }),
+        fetch(`${baseUrl}/api/v1/analytics/changes/${username}`, { 
+          method: 'GET',
+          cache: 'no-store',
+          headers: { 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(5000)
+        }),
+        fetch(`${baseUrl}/api/v1/analytics/rolling-average/${username}`, { 
+          method: 'GET',
+          cache: 'no-store',
+          headers: { 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(5000)
+        })
+      ]);
+      
+      // Process responses
+      growthResponse = { data: growthFetch.ok ? await growthFetch.json() : null };
+      changesResponse = { data: changesFetch.ok ? await changesFetch.json() : null };
+      rollingAvgResponse = { data: rollingAvgFetch.ok ? await rollingAvgFetch.json() : null };
+    } else {
+      // Use axios as fallback
+      [growthResponse, changesResponse, rollingAvgResponse] = await Promise.all([
+        axios.get(`${baseUrl}/api/v1/analytics/growth/${username}`, { 
+          timeout: 5000, // Shorter timeout for analytics requests
+          headers: { 'Accept': 'application/json' }
+        }),
+        axios.get(`${baseUrl}/api/v1/analytics/changes/${username}`, { 
+          timeout: 5000,
+          headers: { 'Accept': 'application/json' }
+        }),
+        axios.get(`${baseUrl}/api/v1/analytics/rolling-average/${username}`, { 
+          timeout: 5000,
+          headers: { 'Accept': 'application/json' }
+        })
+      ]);
+    }
     
     // Return combined analytics data
     return {
@@ -377,10 +413,33 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
           // 2. Try direct URL as fallback (ensure HTTPS)
           const directEndpoint = `${DIRECT_LOGIC_SERVICE_URL.replace('http:', 'https:')}/api/v1/profiles`;
           console.log(`Attempting to fetch profiles from Logic Service direct URL at ${directEndpoint}`);
-          logicProfilesResponse = await axios.get(directEndpoint, { 
-            timeout: 30000,
-            headers: { 'Accept': 'application/json' }
-          });
+          
+          if (USE_FETCH_FOR_DIRECT) {
+            // Use native fetch API to avoid SSL handshake issues that can happen with axios
+            console.log(`Using fetch API instead of axios to avoid SSL handshake issues`);
+            const fetchResponse = await fetch(directEndpoint, { 
+              method: 'GET',
+              headers: { 'Accept': 'application/json' },
+              // Use cache: 'no-store' to avoid cached responses
+              cache: 'no-store',
+              // Add a random query parameter to bust cache
+              signal: AbortSignal.timeout(30000) // 30 second timeout
+            });
+            
+            if (!fetchResponse.ok) {
+              throw new Error(`Fetch failed with status ${fetchResponse.status}`);
+            }
+            
+            // Convert the fetch response to the same format axios would return
+            const responseData = await fetchResponse.json();
+            logicProfilesResponse = { data: responseData };
+          } else {
+            // Fallback to axios if fetch is disabled
+            logicProfilesResponse = await axios.get(directEndpoint, { 
+              timeout: 30000,
+              headers: { 'Accept': 'application/json' }
+            });
+          }
           console.log(`Successfully connected to Logic Service at direct URL`);
           console.log('Direct logic service response data:', logicProfilesResponse.data);
         }
@@ -474,13 +533,29 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
                              
         console.log(`Making final direct attempt to Logic Service at ${directLogicUrl}/api/v1/profiles`);
         
-        // Make a simple health check first
+        // Make a simple health check first using fetch instead of axios
         try {
-          const healthCheck = await axios.get(`${directLogicUrl}/health`, {
-            timeout: 5000,
-            headers: { 'Accept': 'application/json' }
-          });
-          console.log('Final attempt health check successful:', healthCheck.data);
+          if (USE_FETCH_FOR_DIRECT) {
+            const healthResponse = await fetch(`${directLogicUrl}/health`, {
+              method: 'GET',
+              cache: 'no-store',
+              headers: { 'Accept': 'application/json' },
+              signal: AbortSignal.timeout(5000) // 5 second timeout
+            });
+            
+            if (healthResponse.ok) {
+              const healthData = await healthResponse.json();
+              console.log('Final attempt health check successful:', healthData);
+            } else {
+              throw new Error(`Health check failed with status ${healthResponse.status}`);
+            }
+          } else {
+            const healthCheck = await axios.get(`${directLogicUrl}/health`, {
+              timeout: 5000,
+              headers: { 'Accept': 'application/json' }
+            });
+            console.log('Final attempt health check successful:', healthCheck.data);
+          }
         } catch (healthError) {
           console.log('Final attempt health check failed:', healthError.message);
           // Try with the scraper service URL as a last resort
@@ -488,13 +563,35 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
           console.log(`Trying scraper service as last resort: ${directLogicUrl}/api/v1/profiles`);
         }
         
-        const finalResponse = await axios.get(`${directLogicUrl}/api/v1/profiles`, { 
-          timeout: 30000, // Reduced timeout for better UX
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
+        let finalResponse;
+        
+        if (USE_FETCH_FOR_DIRECT) {
+          // Use native fetch to bypass SSL handshake issues
+          console.log(`Using fetch API for final attempt to avoid SSL handshake issues`);
+          const fetchResponse = await fetch(`${directLogicUrl}/api/v1/profiles`, {
+            method: 'GET',
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' },
+            signal: AbortSignal.timeout(30000) // 30 second timeout
+          });
+          
+          if (!fetchResponse.ok) {
+            throw new Error(`Fetch failed with status ${fetchResponse.status}`);
           }
-        });
+          
+          // Convert the fetch response to the same format axios would return
+          const responseData = await fetchResponse.json();
+          finalResponse = { data: responseData };
+        } else {
+          // Fallback to axios
+          finalResponse = await axios.get(`${directLogicUrl}/api/v1/profiles`, { 
+            timeout: 30000, // Reduced timeout for better UX
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
+          });
+        }
         
         if (Array.isArray(finalResponse.data) && finalResponse.data.length > 0) {
           console.log(`Final attempt successful! Received ${finalResponse.data.length} profiles`);
