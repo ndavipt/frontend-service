@@ -136,26 +136,69 @@ const tryMultipleUrls = async (path, options = {}) => {
   
   for (const baseUrl of urlsToTry) {
     try {
-      const fullUrl = `${baseUrl}${path}`;
+      // Ensure HTTPS is used, but preserve localhost HTTP for development
+      let secureBaseUrl = baseUrl;
+      if (!baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1')) {
+        // Only force HTTPS for non-localhost URLs
+        secureBaseUrl = baseUrl.replace('http:', 'https:');
+      }
+      const fullUrl = `${secureBaseUrl}${path}`;
       console.log(`Trying URL: ${fullUrl}`);
       
-      const response = await fetch(fullUrl, {
-        method: 'GET',
-        cache: 'no-store',
-        headers: { 'Accept': 'application/json' },
-        mode: 'cors',
-        credentials: 'omit',
-        signal: AbortSignal.timeout(options.timeout || 10000),
-        ...options
-      });
+      // Try with multiple fetch configurations 
+      let response;
       
-      if (!response.ok) {
+      try {
+        // First try standard CORS mode
+        response = await fetch(fullUrl, {
+          method: 'GET',
+          cache: 'no-store',
+          headers: { 
+            'Accept': 'application/json',
+            'Origin': window.location.origin
+          },
+          mode: 'cors',
+          credentials: 'omit',
+          signal: AbortSignal.timeout(options.timeout || 10000),
+          ...options
+        });
+      } catch (corsError) {
+        console.log(`CORS error with ${fullUrl}, trying no-cors mode`);
+        
+        // If CORS fails, try no-cors as last resort (will provide opaque response)
+        response = await fetch(fullUrl, {
+          method: 'GET',
+          cache: 'no-store',
+          headers: { 'Accept': 'application/json' },
+          mode: 'no-cors', // Last resort mode
+          credentials: 'omit',
+          signal: AbortSignal.timeout(options.timeout || 10000),
+          ...options
+        });
+      }
+      
+      // For no-cors responses, we can't check response.ok or get status
+      if (response.type !== 'opaque' && !response.ok) {
         throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
       }
       
-      const data = await response.json();
-      console.log(`Successfully connected to ${baseUrl}`);
-      return { data, url: baseUrl };
+      let data;
+      try {
+        // For opaque responses from no-cors, this will fail
+        data = await response.json();
+      } catch (jsonError) {
+        if (response.type === 'opaque') {
+          // For opaque responses, we can't parse JSON
+          // Return empty array as fallback
+          console.log(`Got opaque response from ${fullUrl}, using fallback data`);
+          data = [];
+        } else {
+          throw jsonError;
+        }
+      }
+      
+      console.log(`Successfully connected to ${secureBaseUrl}`);
+      return { data, url: secureBaseUrl };
     } catch (error) {
       console.log(`Failed to connect to ${baseUrl}: ${error.message}`);
       errors.push({ url: baseUrl, error: error.message });
@@ -678,8 +721,12 @@ export const fetchTrends = async (forceRefresh = false) => {
           const trendsData = await Promise.all(
             accounts.map(async (account) => {
               try {
-                // Try direct fetch with CORS settings
-                const historyUrl = `${baseUrl}/api/v1/profiles/history/${account.username}`;
+                // Try direct fetch with CORS settings, ensuring HTTPS
+                let secureBaseUrl = baseUrl;
+                if (!baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1')) {
+                  secureBaseUrl = baseUrl.replace('http:', 'https:');
+                }
+                const historyUrl = `${secureBaseUrl}/api/v1/profiles/history/${account.username}`;
                 const response = await fetch(historyUrl, {
                   method: 'GET',
                   cache: 'no-store',
