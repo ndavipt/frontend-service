@@ -379,72 +379,38 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
         
         // Try different URLs for the Logic Service
         try {
-          // First try health check to verify service is up
-          try {
-            console.log('Testing Logic Service health endpoint');
-            const healthResponse = await axios.get(`${LOGIC_URL}/health`, { 
-              timeout: 10000,
-              headers: { 'Accept': 'application/json' }
-            });
-            console.log('Logic Service health check response:', healthResponse.data);
-          } catch (healthError) {
-            console.log('Logic Service health check failed:', healthError.message);
-          }
-        
-          // 1. Try the normal URL first
-          const logicEndpoint = `${LOGIC_URL}/api/v1/profiles`;
-          console.log(`Attempting to fetch profiles from Logic Service at ${logicEndpoint}`);
+          // Skip all complicated proxy attempts and connect directly to scraper service
+          console.log('Skipping proxies and connecting directly to Scraper Service');
           
-          logicProfilesResponse = await axios.get(logicEndpoint, { 
-            timeout: 30000, // Reduced timeout for better user experience
-            headers: { 'Accept': 'application/json' }
+          const directEndpoint = 'https://scraper-service-907s.onrender.com/profiles';
+          console.log(`Attempting to fetch profiles directly from Scraper Service at ${directEndpoint}`);
+          
+          // Use native fetch API to avoid SSL handshake issues that can happen with axios
+          console.log(`Using fetch API for direct connection`);
+          const fetchResponse = await fetch(directEndpoint, { 
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            // Use cache: 'no-store' to avoid cached responses
+            cache: 'no-store',
+            signal: AbortSignal.timeout(10000) // 10 second timeout
           });
-          console.log(`Successfully connected to Logic Service at ${logicEndpoint}`);
-          console.log('Logic service response data:', logicProfilesResponse.data);
           
-          // Check if we got our fallback message instead of actual data
-          if (logicProfilesResponse.data && logicProfilesResponse.data.status === 'fallback') {
-            console.log('Received fallback response from proxy, trying direct URL');
-            throw new Error('Fallback response received');
+          if (!fetchResponse.ok) {
+            throw new Error(`Fetch failed with status ${fetchResponse.status}`);
           }
-        } catch (proxyError) {
-          console.log(`Failed to connect to Logic Service via proxy, trying direct URL`, proxyError);
           
-          // 2. Try direct URL as fallback (ensure HTTPS)
-          const directEndpoint = `${DIRECT_LOGIC_SERVICE_URL.replace('http:', 'https:')}/api/v1/profiles`;
-          console.log(`Attempting to fetch profiles from Logic Service direct URL at ${directEndpoint}`);
+          // Convert the fetch response to the same format axios would return
+          const responseData = await fetchResponse.json();
+          logicProfilesResponse = { data: responseData };
           
-          if (USE_FETCH_FOR_DIRECT) {
-            // Use native fetch API to avoid SSL handshake issues that can happen with axios
-            console.log(`Using fetch API instead of axios to avoid SSL handshake issues`);
-            const fetchResponse = await fetch(directEndpoint, { 
-              method: 'GET',
-              headers: { 'Accept': 'application/json' },
-              // Use cache: 'no-store' to avoid cached responses
-              cache: 'no-store',
-              // Add a random query parameter to bust cache
-              signal: AbortSignal.timeout(30000) // 30 second timeout
-            });
-            
-            if (!fetchResponse.ok) {
-              throw new Error(`Fetch failed with status ${fetchResponse.status}`);
-            }
-            
-            // Convert the fetch response to the same format axios would return
-            const responseData = await fetchResponse.json();
-            logicProfilesResponse = { data: responseData };
-          } else {
-            // Fallback to axios if fetch is disabled
-            logicProfilesResponse = await axios.get(directEndpoint, { 
-              timeout: 30000,
-              headers: { 'Accept': 'application/json' }
-            });
-          }
-          console.log(`Successfully connected to Logic Service at direct URL`);
-          console.log('Direct logic service response data:', logicProfilesResponse.data);
+          console.log(`Successfully connected to Scraper Service at ${directEndpoint}`);
+          console.log(`Received ${responseData.length} profiles from Scraper Service`);
+        } catch (fetchError) {
+          console.log(`Failed to connect to Scraper Service, will try backup methods`, fetchError);
+          throw fetchError;  // Let it fall through to the next handler
         }
         
-        console.log(`SUCCESS! Received ${logicProfilesResponse.data?.length} profiles from Logic Service`);
+        console.log(`SUCCESS! Received ${logicProfilesResponse.data?.length} profiles from Scraper Service`);
         
         if (Array.isArray(logicProfilesResponse.data) && logicProfilesResponse.data.length > 0) {
           // Format and enhance profiles with analytics data
@@ -524,55 +490,22 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
       
       // Make one final direct attempt to the Logic Service
       try {
-        let directLogicUrl = process.env.REACT_APP_LOGIC_URL || 
-                           (window._env_ && window._env_.REACT_APP_LOGIC_URL) || 
-                           'https://logic-service.onrender.com';
-        
-        // Ensure HTTPS protocol
-        directLogicUrl = directLogicUrl.replace('http:', 'https:');
+        // Skip all proxies and go directly to the scraper service
+        const directLogicUrl = 'https://scraper-service-907s.onrender.com';
+        console.log(`Making direct attempt to Scraper Service at ${directLogicUrl}/profiles - bypassing all proxies`);
                              
-        console.log(`Making final direct attempt to Logic Service at ${directLogicUrl}/api/v1/profiles`);
-        
-        // Make a simple health check first using fetch instead of axios
-        try {
-          if (USE_FETCH_FOR_DIRECT) {
-            const healthResponse = await fetch(`${directLogicUrl}/health`, {
-              method: 'GET',
-              cache: 'no-store',
-              headers: { 'Accept': 'application/json' },
-              signal: AbortSignal.timeout(5000) // 5 second timeout
-            });
-            
-            if (healthResponse.ok) {
-              const healthData = await healthResponse.json();
-              console.log('Final attempt health check successful:', healthData);
-            } else {
-              throw new Error(`Health check failed with status ${healthResponse.status}`);
-            }
-          } else {
-            const healthCheck = await axios.get(`${directLogicUrl}/health`, {
-              timeout: 5000,
-              headers: { 'Accept': 'application/json' }
-            });
-            console.log('Final attempt health check successful:', healthCheck.data);
-          }
-        } catch (healthError) {
-          console.log('Final attempt health check failed:', healthError.message);
-          // Try with the scraper service URL as a last resort
-          directLogicUrl = 'https://scraper-service-907s.onrender.com';
-          console.log(`Trying scraper service as last resort: ${directLogicUrl}/api/v1/profiles`);
-        }
+        // Skip health check to simplify - go straight to data
         
         let finalResponse;
         
-        if (USE_FETCH_FOR_DIRECT) {
-          // Use native fetch to bypass SSL handshake issues
-          console.log(`Using fetch API for final attempt to avoid SSL handshake issues`);
-          const fetchResponse = await fetch(`${directLogicUrl}/api/v1/profiles`, {
+        // Always use the native fetch API with scraper service
+        console.log(`Using fetch API to connect directly to Scraper Service`);
+        try {
+          const fetchResponse = await fetch(`${directLogicUrl}/profiles`, {
             method: 'GET',
             cache: 'no-store',
             headers: { 'Accept': 'application/json' },
-            signal: AbortSignal.timeout(30000) // 30 second timeout
+            signal: AbortSignal.timeout(10000) // 10 second timeout
           });
           
           if (!fetchResponse.ok) {
@@ -582,15 +515,11 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
           // Convert the fetch response to the same format axios would return
           const responseData = await fetchResponse.json();
           finalResponse = { data: responseData };
-        } else {
-          // Fallback to axios
-          finalResponse = await axios.get(`${directLogicUrl}/api/v1/profiles`, { 
-            timeout: 30000, // Reduced timeout for better UX
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            }
-          });
+          console.log(`Successfully fetched ${responseData.length} profiles from scraper service`);
+        } catch (fetchError) {
+          console.error(`Error fetching from scraper service:`, fetchError);
+          // Fall back to mock data
+          throw fetchError;
         }
         
         if (Array.isArray(finalResponse.data) && finalResponse.data.length > 0) {
