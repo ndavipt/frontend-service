@@ -31,16 +31,17 @@ const LOGIC_URL = runtimeEnv.REACT_APP_LOGIC_URL ||
                  CONFIG_LOGIC_URL || 
                  '/logic'; // Use proxy endpoint as default - will handle API versions internally
 
-// ⚠️ CORS EMERGENCY BYPASS - Use a free CORS proxy service
-// This solves cross-origin issues by routing requests through a third-party proxy
-// The proxy adds proper CORS headers to the response
+// CORS handling options
+// The Logic Service team has fixed CORS on their end by adding:
+// CORS_ORIGINS=* environment variable to allow all origins
+
+// Keep CORS proxy as fallback option in case CORS issues return
 const CORS_PROXY = 'https://corsproxy.io/?';
 // const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 // const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
-// const CORS_PROXY = 'https://cors.bridged.cc/';
 
-// Flag to enable using CORS proxy for all requests
-const USE_CORS_PROXY = true;
+// Flag to enable using CORS proxy - keeping it false since CORS should now work directly
+const USE_CORS_PROXY = false;
 
 // Create an Axios instance with default config
 const api = axios.create({
@@ -198,7 +199,7 @@ const tryMultipleUrls = async (path, options = {}) => {
       let response;
       
       try {
-        // First try direct CORS mode with simplified headers since Logic Service now has proper CORS
+        // Now that CORS is fixed on the Logic Service, we can use a simpler direct request
         response = await fetch(fullUrl, {
           method: 'GET',
           cache: 'no-store',
@@ -211,7 +212,7 @@ const tryMultipleUrls = async (path, options = {}) => {
           ...options
         });
         
-        console.log(`Direct fetch response status: ${response.status}`);
+        console.log(`Direct fetch response status: ${response.status} from ${fullUrl}`);
         
       } catch (corsError) {
         console.log(`CORS error with ${fullUrl}: ${corsError.message}`);
