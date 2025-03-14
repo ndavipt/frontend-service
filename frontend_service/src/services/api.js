@@ -25,11 +25,11 @@ const API_URL = runtimeEnv.REACT_APP_API_URL ||
                 CONFIG_API_URL || 
                 (isDev ? `http://localhost:${API_PORT}` : '');
 
-// Configure Logic Service URL
+// Configure Logic Service URL - try both with and without /api/v1 prefix
 const LOGIC_URL = runtimeEnv.REACT_APP_LOGIC_URL || 
                  process.env.REACT_APP_LOGIC_URL || 
                  CONFIG_LOGIC_URL || 
-                 '/api/v1'; // Use API v1 as default endpoint
+                 '/logic'; // Use proxy endpoint as default - will handle API versions internally
 
 // Create an Axios instance with default config
 const api = axios.create({
@@ -756,7 +756,18 @@ export const fetchTrends = async (forceRefresh = false) => {
       try {
         // Get all accounts from Logic Service using our helper
         console.log('Fetching accounts from Logic Service');
-        const accountsResult = await tryMultipleUrls('/api/v1/accounts');
+        
+        // Try multiple endpoint formats
+        let accountsResult;
+        try {
+          // First try with /api/v1/ prefix
+          accountsResult = await tryMultipleUrls('/api/v1/accounts');
+        } catch (apiV1Error) {
+          console.log('Failed to fetch accounts with /api/v1/ prefix, trying direct endpoint');
+          // Next try with direct endpoint
+          accountsResult = await tryMultipleUrls('/accounts');
+        }
+        
         const accounts = accountsResult.data;
         const baseUrl = accountsResult.url;
         
@@ -772,15 +783,42 @@ export const fetchTrends = async (forceRefresh = false) => {
                 if (!baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1')) {
                   secureBaseUrl = baseUrl.replace('http:', 'https:');
                 }
-                const historyUrl = `${secureBaseUrl}/api/v1/profiles/history/${account.username}`;
-                const response = await fetch(historyUrl, {
-                  method: 'GET',
-                  cache: 'no-store',
-                  headers: { 'Accept': 'application/json' },
-                  mode: 'cors',
-                  credentials: 'omit',
-                  signal: AbortSignal.timeout(5000)
-                });
+                // First try with /api/v1/ prefix
+                let historyUrl = `${secureBaseUrl}/api/v1/profiles/history/${account.username}`;
+                let response;
+                
+                try {
+                  response = await fetch(historyUrl, {
+                    method: 'GET',
+                    cache: 'no-store',
+                    headers: { 
+                      'Accept': 'application/json',
+                      'Origin': window.location.origin,
+                      'Access-Control-Request-Method': 'GET',
+                      'Access-Control-Request-Headers': 'content-type,accept'
+                    },
+                    mode: 'cors',
+                    credentials: 'omit',
+                    signal: AbortSignal.timeout(5000)
+                  });
+                } catch (corsError) {
+                  console.log(`CORS error with ${historyUrl}, trying alternative endpoint`);
+                  
+                  // Try with direct endpoint (no /api/v1/ prefix)
+                  historyUrl = `${secureBaseUrl}/profiles/history/${account.username}`;
+                  response = await fetch(historyUrl, {
+                    method: 'GET',
+                    cache: 'no-store',
+                    headers: { 
+                      'Accept': 'application/json',
+                      'Origin': window.location.origin,
+                      'Access-Control-Request-Method': 'GET'
+                    },
+                    mode: 'cors',
+                    credentials: 'omit',
+                    signal: AbortSignal.timeout(5000)
+                  });
+                }
                 
                 if (!response.ok) {
                   throw new Error(`Failed to fetch history: ${response.status}`);
