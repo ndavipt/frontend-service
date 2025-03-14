@@ -243,6 +243,9 @@ export const fetchProfileAnalytics = async (username) => {
       baseUrl = 'https://logic-service.onrender.com';
     }
     
+    // Ensure HTTPS protocol
+    baseUrl = baseUrl.replace('http:', 'https:');
+    
     // Make parallel requests to Logic Service for different analytics
     const [growthResponse, changesResponse, rollingAvgResponse] = await Promise.all([
       axios.get(`${baseUrl}/api/v1/analytics/growth/${username}`),
@@ -284,6 +287,9 @@ const enhanceProfilesWithAnalytics = async (profiles) => {
           // If that fails, try the direct URL
           baseUrl = DIRECT_LOGIC_SERVICE_URL;
         }
+        
+        // Ensure HTTPS protocol
+        baseUrl = baseUrl.replace('http:', 'https:');
         
         // Get current profile data from Logic Service
         const currentResponse = await axios.get(`${baseUrl}/api/v1/profiles/current/${profile.username}`);
@@ -343,8 +349,8 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
         } catch (proxyError) {
           console.log(`Failed to connect to Logic Service via proxy, trying direct URL`, proxyError);
           
-          // 2. Try direct URL as fallback
-          const directEndpoint = `${DIRECT_LOGIC_SERVICE_URL}/api/v1/profiles`;
+          // 2. Try direct URL as fallback (ensure HTTPS)
+          const directEndpoint = `${DIRECT_LOGIC_SERVICE_URL.replace('http:', 'https:')}/api/v1/profiles`;
           console.log(`Attempting to fetch profiles from Logic Service direct URL at ${directEndpoint}`);
           logicProfilesResponse = await axios.get(directEndpoint, { timeout: 180000 });
           console.log(`Successfully connected to Logic Service at direct URL`);
@@ -431,9 +437,12 @@ export const fetchLeaderboard = async (forceRefresh = false) => {
       
       // Make one final direct attempt to the Logic Service
       try {
-        const directLogicUrl = process.env.REACT_APP_LOGIC_URL || 
-                             (window._env_ && window._env_.REACT_APP_LOGIC_URL) || 
-                             'https://logic-service.onrender.com';
+        let directLogicUrl = process.env.REACT_APP_LOGIC_URL || 
+                           (window._env_ && window._env_.REACT_APP_LOGIC_URL) || 
+                           'https://logic-service.onrender.com';
+        
+        // Ensure HTTPS protocol
+        directLogicUrl = directLogicUrl.replace('http:', 'https:');
                              
         console.log(`Making final direct attempt to Logic Service at ${directLogicUrl}/api/v1/profiles`);
         
