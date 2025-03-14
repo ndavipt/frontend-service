@@ -25,23 +25,22 @@ const API_URL = runtimeEnv.REACT_APP_API_URL ||
                 CONFIG_API_URL || 
                 (isDev ? `http://localhost:${API_PORT}` : '');
 
-// Configure Logic Service URL - use only the local proxy
+// Configure Logic Service URL - Logic Service now has proper CORS configuration
 const LOGIC_URL = runtimeEnv.REACT_APP_LOGIC_URL || 
                  process.env.REACT_APP_LOGIC_URL || 
                  CONFIG_LOGIC_URL || 
-                 '/logic'; // Use proxy endpoint which now has a permanent routing solution
+                 DIRECT_LOGIC_SERVICE_URL; // Use direct URL since CORS is now fixed
 
-// PERMANENT SOLUTION:
-// We're using a server-side proxy in nginx (/logic) that routes requests to the Logic Service
-// This permanently avoids CORS issues because:
-// 1. Browser makes requests to our own domain via /logic endpoint
-// 2. Server forwards those requests to Logic Service behind the scenes
-// 3. No cross-origin requests occur from the browser's perspective
+// CORS ISSUE FIXED:
+// Logic Service team has hard-coded wildcard (*) into their CORS origins list, which means:
+// 1. Requests from any domain are now allowed
+// 2. The fix is built into the code, not just through environment variables
+// 3. Our specific domain is also explicitly included
+//
+// This is the best and most reliable solution as it fixes the issue at its root cause.
 
-// No longer needed - keeping for reference
+// Disabled - not needed with fixed CORS
 const CORS_PROXY = 'https://corsproxy.io/?';
-
-// Disabled - using server-side proxy instead
 const USE_CORS_PROXY = false;
 
 // Create an Axios instance with default config
@@ -141,10 +140,12 @@ const formatProfileData = (serviceProfiles) => {
 const tryMultipleUrls = async (path, options = {}) => {
   const errors = [];
   
-  // PERMANENT SOLUTION: Only use the local nginx proxy which handles CORS
-  // This is the most reliable approach because it avoids CORS entirely
+  // CORS is now fixed by the Logic Service team
+  // Try direct connection to Logic Service first, then fallbacks
   const urlsToTry = [
-    '/logic', // Always use local proxy first - this avoids CORS completely
+    DIRECT_LOGIC_SERVICE_URL,
+    ...FALLBACK_URLS.filter(url => url !== DIRECT_LOGIC_SERVICE_URL),
+    '/logic' // Local proxy as last resort
   ];
   
   for (const baseUrl of urlsToTry) {
